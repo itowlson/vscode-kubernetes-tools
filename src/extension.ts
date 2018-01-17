@@ -48,6 +48,9 @@ import { registerYamlSchemaSupport } from './yaml-support/yaml-schema';
 import * as clusterproviderregistry from './components/clusterprovider/clusterproviderregistry';
 import * as azureclusterprovider from './components/clusterprovider/azure/azureclusterprovider';
 
+// azure-account special dependency (externally sourced but has to be built into project)
+import { AzureAccount } from './azure-account.api';
+
 let explainActive = false;
 let swaggerSpecPromise = null;
 
@@ -88,6 +91,15 @@ export async function activate(context) : Promise<extensionapi.ExtensionAPI> {
         "helm",
         {pattern: "**/templates/NOTES.txt"}
     ];
+
+    const azureAccountExtn = vscode.extensions.getExtension<AzureAccount>('ms-vscode.azure-account');
+    if (azureAccountExtn) {
+        azureAccountExtn.activate().then((acct) => {
+            vscode.window.showInformationMessage(`azure-account status: ${acct.status}`);  // starts out as Initializing
+        });
+    } else {
+        vscode.window.showInformationMessage(`azure-account extension not present`);
+    }
 
     const subscriptions = [
 
