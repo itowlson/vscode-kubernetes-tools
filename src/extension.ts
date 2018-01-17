@@ -53,6 +53,7 @@ import { AzureAccount } from './azure-account.api';
 
 let explainActive = false;
 let swaggerSpecPromise = null;
+let azureAccount: AzureAccount | null = null;
 
 const kubectl = kubectlCreate(host, fs, shell);
 const draft = draftCreate(host, fs, shell);
@@ -94,11 +95,14 @@ export async function activate(context) : Promise<extensionapi.ExtensionAPI> {
 
     const azureAccountExtn = vscode.extensions.getExtension<AzureAccount>('ms-vscode.azure-account');
     if (azureAccountExtn) {
-        azureAccountExtn.activate().then((acct) => {
+        azureAccountExtn.activate().then(async (acct) => {
             vscode.window.showInformationMessage(`azure-account status: ${acct.status}`);  // starts out as Initializing
+            azureAccount = acct;
+            await acct.waitForLogin();
+            await acct.waitForSubscriptions();
+            vscode.window.showInformationMessage(`azure-account status now: ${acct.status} ${acct.subscriptions.length} ${acct.sessions.length}`);  // starts out as Initializing
+            // poke the tree provider or wherever else needs to be updated (e.g. register something (and push it to subscriptions))
         });
-    } else {
-        vscode.window.showInformationMessage(`azure-account extension not present`);
     }
 
     const subscriptions = [
