@@ -1,10 +1,44 @@
 'use strict';
 
+import * as vscode from 'vscode';
+
 import { Shell } from '../../../shell';
 import { FS } from '../../../fs';
 import { Errorable, ActionResult, fromShellJson, fromShellExitCode } from '../../../wizard';
 import * as compareVersions from 'compare-versions';
 import { sleep } from '../../../sleep';
+// azure-account special dependency (externally sourced but has to be built into project)
+import { AzureAccount } from '../../../azure-account.api';
+
+let azureAccount: AzureAccount | null = null;
+let initComplete = false;
+
+export async function init() : Promise<void> {
+    const azureAccountExtn = vscode.extensions.getExtension<AzureAccount>('ms-vscode.azure-account');
+    if (azureAccountExtn) {
+        azureAccountExtn.activate().then(async (acct) => {
+            vscode.window.showInformationMessage(`azure-account status: ${acct.status}`);  // starts out as Initializing
+            azureAccount = acct;
+            await acct.waitForLogin();
+            await acct.waitForSubscriptions();
+            vscode.window.showInformationMessage(`azure-account status now: ${acct.status} ${acct.subscriptions.length} ${acct.sessions.length}`);  // starts out as Initializing
+            initComplete = true;
+            // poke the tree provider or wherever else needs to be updated (e.g. register something (and push it to subscriptions))
+        });
+    } else {
+        initComplete = true;
+    }
+}
+
+async function waitForAccountExtension() : Promise<void> {
+    while (!initComplete) {
+        await sleep(50);  // yes, it's ugly
+    }
+}
+
+// function sleep(ms: number) : Promise<void> {
+//     return new Promise<void>((resolve) => setTimeout(resolve, ms));
+// }
 
 export interface Context {
     readonly fs: FS;

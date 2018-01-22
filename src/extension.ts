@@ -50,10 +50,10 @@ import * as azureclusterprovider from './components/clusterprovider/azure/azurec
 
 // azure-account special dependency (externally sourced but has to be built into project)
 import { AzureAccount } from './azure-account.api';
+import * as azure from './azure';
 
 let explainActive = false;
 let swaggerSpecPromise = null;
-let azureAccount: AzureAccount | null = null;
 
 const kubectl = kubectlCreate(host, fs, shell);
 const draft = draftCreate(host, fs, shell);
@@ -82,6 +82,7 @@ export const HELM_TPL_MODE: vscode.DocumentFilter = { language: "helm", scheme: 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export async function activate(context) : Promise<extensionapi.ExtensionAPI> {
+    azure.init();
     kubectl.checkPresent('activation');
 
     const treeProvider = explorer.create(kubectl, host);
@@ -92,18 +93,6 @@ export async function activate(context) : Promise<extensionapi.ExtensionAPI> {
         "helm",
         {pattern: "**/templates/NOTES.txt"}
     ];
-
-    const azureAccountExtn = vscode.extensions.getExtension<AzureAccount>('ms-vscode.azure-account');
-    if (azureAccountExtn) {
-        azureAccountExtn.activate().then(async (acct) => {
-            vscode.window.showInformationMessage(`azure-account status: ${acct.status}`);  // starts out as Initializing
-            azureAccount = acct;
-            await acct.waitForLogin();
-            await acct.waitForSubscriptions();
-            vscode.window.showInformationMessage(`azure-account status now: ${acct.status} ${acct.subscriptions.length} ${acct.sessions.length}`);  // starts out as Initializing
-            // poke the tree provider or wherever else needs to be updated (e.g. register something (and push it to subscriptions))
-        });
-    }
 
     const subscriptions = [
 
