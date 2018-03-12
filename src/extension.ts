@@ -42,6 +42,7 @@ import * as extensionapi from './extension.api';
 import {dashboardKubernetes} from './components/kubectl/proxy';
 import { DebugSession } from './debug/debugSession';
 import { getDebugProviderOfType, getSupportedDebuggerTypes } from './debug/providerRegistry';
+import { Errorable } from './wizard';
 
 import { registerYamlSchemaSupport } from './yaml-support/yaml-schema';
 import * as clusterproviderregistry from './components/clusterprovider/clusterproviderregistry';
@@ -595,29 +596,22 @@ function getKubernetes(explorerNode? : any) {
     }
 }
 
-function findVersion() {
-    return {
-        then: findVersionInternal
-    };
-}
-
-function findVersionInternal(fn) {
+async function findVersion() : Promise<string | null> {
     // No .git dir, use 'latest'
     // TODO: use 'git rev-parse' to detect upstream directories
     if (!fs.existsSync(path.join(vscode.workspace.rootPath, '.git'))) {
-        fn('latest');
-        return;
+        return 'latest';
     }
 
-    shell.execCore('git describe --always --dirty', shell.execOpts()).then(({code, stdout, stderr}) => {
-        if (code !== 0) {
-            vscode.window.showErrorMessage('git log returned: ' + code);
-            console.log(stderr);
-            fn('error');
-            return;
-        }
-        fn(stdout);
-    });
+    const sr = await shell.execCore('git describe --always --dirty', shell.execOpts());
+
+    if (sr.code !== 0) {
+        vscode.window.showErrorMessage('git log returned: ' + sr.code);
+        console.log(sr.stderr);
+        return null;
+    }
+
+    return sr.stdout;
 }
 
 async function findAllPods() : Promise<FindPodsResult> {
@@ -661,28 +655,32 @@ interface FindPodsResult {
     readonly pods: any[];
 }
 
-function findNameAndImage() {
-    return {
-        then: _findNameAndImageInternal
-    };
+interface NameAndImage {
+    readonly name: string;
+    readonly image: string;
 }
 
-function _findNameAndImageInternal(fn) {
+async function findNameAndImage() : Promise<NameAndImage | null> {
     if (vscode.workspace.rootPath === undefined) {
-        vscode.window.showErrorMessage('This command requires an open folder.');
-        return;
+        await vscode.window.showErrorMessage('This command requires an open folder.');
+        return null;
     }
+
     const folderName = path.basename(vscode.workspace.rootPath);
     const name = docker.sanitiseTag(folderName);
-    findVersion().then((version) => {
-        let image = name + ":" + version;
-        let user = vscode.workspace.getConfiguration().get("vsdocker.imageUser", null);
-        if (user) {
-            image = user + '/' + image;
-        }
+    const version = await findVersion();
 
-        fn(name.trim(), image.trim());
-    });
+    if (!version) {
+        return null;
+    }
+
+    let image = name + ":" + version;
+    const user = vscode.workspace.getConfiguration().get("vsdocker.imageUser", null);
+    if (user) {
+        image = user + '/' + image;
+    }
+
+    return { name: name.trim(), image: image.trim() };
 }
 
 function scaleKubernetes() {
@@ -708,34 +706,43 @@ function invokeScaleKubernetes(kindName : string, replicas : number) {
     kubectl.invoke(`scale --replicas=${replicas} ${kindName}`);
 }
 
-function runKubernetes() {
-    buildPushThenExec((name, image) => {
+async function runKubernetes() : Promise<void> {
+    const nameAndImage = await buildPushThenExec();
+    if (nameAndImage) {
+        const name = nameAndImage.name;
+        const image = nameAndImage.image;
         kubectl.invoke(`run ${name} --image=${image}`);
-    });
+    }
 }
 
-function buildPushThenExec(fn) {
-    findNameAndImage().then((name, image) => {
-        shell.exec(`docker build -t ${image} .`).then(({code, stdout, stderr}) => {
-            if (code === 0) {
-                vscode.window.showInformationMessage(image + ' built.');
-                shell.exec('docker push ' + image).then(({code, stdout, stderr}) => {
-                    if (code === 0) {
-                        vscode.window.showInformationMessage(image + ' pushed.');
-                        fn(name, image);
-                    } else {
-                        vscode.window.showErrorMessage('Image push failed. See Output window for details.');
-                        kubeChannel.showOutput(stderr, 'Docker');
-                        console.log(stderr);
-                    }
-                });
-            } else {
-                vscode.window.showErrorMessage('Image build failed. See Output window for details.');
-                kubeChannel.showOutput(stderr, 'Docker');
-                console.log(stderr);
-            }
-        });
-    });
+async function buildPushThenExec() : Promise<NameAndImage | null> {
+    const nameAndImage = await findNameAndImage();
+    if (!nameAndImage) {
+        return null;
+    }
+
+    const image = nameAndImage.image;
+
+    const build = await shell.exec(`docker build -t ${image} .`);
+
+    if (build.code === 0) {
+        await vscode.window.showInformationMessage(image + ' built.');
+        const push = await shell.exec('docker push ' + image);
+        if (push.code === 0) {
+            vscode.window.showInformationMessage(image + ' pushed.');
+            return nameAndImage;
+        } else {
+            vscode.window.showErrorMessage('Image push failed. See Output window for details.');
+            kubeChannel.showOutput(push.stderr, 'Docker');
+            console.log(push.stderr);
+            return null;
+        }
+    } else {
+        vscode.window.showErrorMessage('Image build failed. See Output window for details.');
+        kubeChannel.showOutput(build.stderr, 'Docker');
+        console.log(build.stderr);
+        return null;
+    }
 }
 
 function findKindName() {
@@ -1256,7 +1263,10 @@ const debugKubernetes = async () => {
         if (debugProvider) {
             new DebugSession(kubectl).launch(vscode.workspace.workspaceFolders[0], debugProvider);
         } else {
-            buildPushThenExec(_debugInternal);
+            const nameAndImage = await buildPushThenExec();
+            if (nameAndImage) {
+                await _debugInternal(nameAndImage);
+            }
         }
     }
 };
@@ -1268,22 +1278,22 @@ const debugAttachKubernetes = async (explorerNode: explorer.KubernetesObject) =>
     }
 };
 
-const _debugInternal = (name, image) => {
+const _debugInternal = async (nameAndImage: NameAndImage) => {
     // TODO: optionalize/customize the '-debug'
     // TODO: make this smarter.
-    vscode.window.showInputBox({
+    const cmd = await vscode.window.showInputBox({
         prompt: 'Debug command for your container:',
         placeHolder: 'Example: node debug server.js' }
-    ).then((cmd) => {
-        if (!cmd) {
-            return;
-        }
-
-        _doDebug(name, image, cmd);
-    });
+    );
+    
+    if (cmd) {
+        await _doDebug(nameAndImage, cmd);
+    }
 };
 
-const _doDebug = async (name, image, cmd) => {
+const _doDebug = async (nameAndImage: NameAndImage, cmd) => {
+    const name = nameAndImage.name;
+    const image = nameAndImage.image;
     const deploymentName = `${name}-debug`;
     const runCmd = `run ${deploymentName} --image=${image} -i --attach=false -- ${cmd}`;
     console.log(runCmd);
@@ -1370,49 +1380,49 @@ const waitForRunningPod = (name, callback) => {
         });
 };
 
-function exists(kind, name, handler) {
-    //eslint-disable-next-line no-unused-vars
-    kubectl.invoke('get ' + kind + ' ' + name, (result) => {
-        handler(result === 0);
-    });
+async function exists(kind, name) : Promise<boolean> {
+    const sr = await kubectl.invokeAsync('get ' + kind + ' ' + name);
+    return sr.code === 0;
 }
 
-function deploymentExists(deploymentName, handler) {
-    exists('deployments', deploymentName, handler);
+async function deploymentExists(deploymentName) : Promise<boolean> {
+    return await exists('deployments', deploymentName);
 }
 
-function serviceExists(serviceName, handler) {
-    exists('services', serviceName, handler);
+async function serviceExists(serviceName) : Promise<boolean> {
+    return await exists('services', serviceName);
 }
 
-function removeDebugKubernetes() {
-    //eslint-disable-next-line no-unused-vars
-    findNameAndImage().then((name, image) => {
-        let deploymentName = name + '-debug';
-        deploymentExists(deploymentName, (deployment) => {
-            serviceExists(deploymentName, (service) => {
-                if (!deployment && !service) {
-                    vscode.window.showInformationMessage(deploymentName + ': nothing to clean up');
-                    return;
-                }
+async function removeDebugKubernetes() : Promise<void> {
+    const nameAndImage = await findNameAndImage();
+    if (!nameAndImage) {
+        return;
+    }
 
-                let toDelete = deployment ? ('deployment' + (service ? ' and service' : '')) : 'service';
-                vscode.window.showWarningMessage('This will delete ' + toDelete + ' ' + deploymentName, 'Delete').then((opt) => {
-                    if (opt !== 'Delete') {
-                        return;
-                    }
+    const deploymentName = nameAndImage.name + '-debug';
 
-                    if (service) {
-                        kubectl.invoke('delete service ' + deploymentName);
-                    }
+    const deployment = await deploymentExists(deploymentName);
+    const service = await serviceExists(deploymentName);
 
-                    if (deployment) {
-                        kubectl.invoke('delete deployment ' + deploymentName);
-                    }
-                });
-            });
-        });
-    });
+    if (!deployment && !service) {
+        await vscode.window.showInformationMessage(deploymentName + ': nothing to clean up');
+        return;
+    }
+
+    let toDelete = deployment ? ('deployment' + (service ? ' and service' : '')) : 'service';
+    const opt = await vscode.window.showWarningMessage('This will delete ' + toDelete + ' ' + deploymentName, 'Delete');
+
+    if (opt !== 'Delete') {
+        return;
+    }
+
+    if (service) {
+        await kubectl.invokeAsync('delete service ' + deploymentName);
+    }
+
+    if (deployment) {
+        await kubectl.invokeAsync('delete deployment ' + deploymentName);
+    }
 }
 
 async function configureFromClusterKubernetes() {
