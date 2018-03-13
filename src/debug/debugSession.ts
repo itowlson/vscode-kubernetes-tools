@@ -15,6 +15,7 @@ import { shell } from "../shell";
 
 import { DockerfileParser } from "../docker/dockerfileParser";
 import * as dockerUtils from "../docker/dockerUtils";
+import * as dockerregistry from '../docker/dockerregistry';
 
 const debugCommandDocumentationUrl = "https://github.com/Azure/vscode-kubernetes-tools/blob/master/debug-on-kubernetes.md";
 
@@ -66,7 +67,6 @@ export class DebugSession implements IDebugSession {
         }
 
         const cwd = workspaceFolder.uri.fsPath;
-        const imagePrefix = vscode.workspace.getConfiguration().get("vsdocker.imageUser", null);
         const containerEnv = {};
         const portInfo = await this.debugProvider.resolvePortsFromFile(dockerfile, containerEnv);
         if (!portInfo || !portInfo.debugPort || !portInfo.appPort) {
@@ -80,7 +80,7 @@ export class DebugSession implements IDebugSession {
                 // Build/push docker image.
                 p.report({ message: "Building Docker image..."});
                 const shellOpts = Object.assign({ }, shell.execOpts(), { cwd });
-                const imageName = await this.buildDockerImage(imagePrefix, shellOpts);
+                const imageName = await this.buildDockerImage(shellOpts);
 
                 // Run docker image in k8s container.
                 p.report({ message: "Running Docker image on Kubernetes..."});
@@ -210,15 +210,15 @@ export class DebugSession implements IDebugSession {
         return debugProvider;
     }
 
-    private async buildDockerImage(imagePrefix: string, shellOpts: any): Promise<string> {
+    private async buildDockerImage(shellOpts: any): Promise<string> {
         kubeChannel.showOutput("Starting to build/push Docker image...", "Docker build/push");
-        if (!imagePrefix) {
+        if (!dockerregistry.isLocal()) {
             // In order to allow local kubernetes cluster (e.g. minikube) to have access to local docker images,
             // need override docker-env before running docker build.
             const dockerEnv = await dockerUtils.resolveKubernetesDockerEnv(this.kubectl);
             shellOpts.env = Object.assign({}, shellOpts.env, dockerEnv);
         }
-        const imageName = await dockerUtils.buildAndPushDockerImage(dockerUtils.DockerClient.docker, shellOpts, imagePrefix);
+        const imageName = await dockerUtils.buildAndPushDockerImage(dockerUtils.DockerClient.docker, shellOpts);
         kubeChannel.showOutput(`Finished building/pushing Docker image ${imageName}.`);
 
         return imageName;

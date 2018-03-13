@@ -48,6 +48,7 @@ import { registerYamlSchemaSupport } from './yaml-support/yaml-schema';
 import * as clusterproviderregistry from './components/clusterprovider/clusterproviderregistry';
 import * as azureclusterprovider from './components/clusterprovider/azure/azureclusterprovider';
 import { showWorkspaceFolderPick } from './hostutils';
+import * as dockerregistry from './docker/dockerregistry';
 
 let explainActive = false;
 let swaggerSpecPromise = null;
@@ -672,12 +673,7 @@ function _findNameAndImageInternal(fn) {
     const folderName = path.basename(vscode.workspace.rootPath);
     const name = docker.sanitiseTag(folderName);
     findVersion().then((version) => {
-        let image = name + ":" + version;
-        let user = vscode.workspace.getConfiguration().get("vsdocker.imageUser", null);
-        if (user) {
-            image = user + '/' + image;
-        }
-
+        const image = dockerregistry.tag(name + ":" + version);
         fn(name.trim(), image.trim());
     });
 }

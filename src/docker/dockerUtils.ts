@@ -8,6 +8,7 @@ import { Kubectl } from "../kubectl";
 import { getCurrentClusterConfig } from "../kubectlUtils";
 import { shell, ShellResult } from "../shell";
 import { DockerfileParser } from "./dockerfileParser";
+import * as dockerregistry from './dockerregistry';
 
 export enum DockerClient {
     docker = "docker",
@@ -22,11 +23,11 @@ export enum DockerClient {
  * @param imagePrefix the image prefix for docker images (e.g. 'docker.io/brendanburns').
  * @return the image name.
  */
-export async function buildAndPushDockerImage(dockerClient: DockerClient, shellOpts: any, imagePrefix?: string): Promise<string> {
+export async function buildAndPushDockerImage(dockerClient: DockerClient, shellOpts: any): Promise<string> {
     const cwd = shellOpts.cwd || vscode.workspace.rootPath;
-    const image = await getDefaultImageName(cwd, imagePrefix);
+    const image = await getDefaultImageName(cwd);
     await buildDockerImage(dockerClient, image, shellOpts);
-    if (imagePrefix) {
+    if (!dockerregistry.isLocal()) {
         await pushDockerImage(dockerClient, image, shellOpts);
     }
     return image;
@@ -41,13 +42,10 @@ function sanitiseTag(name : string) {
     return name.toLowerCase().replace(/[^a-z0-9._-]/g, '-');
 }
 
-async function getDefaultImageName(cwd: string, imagePrefix?: string): Promise<string> {
+async function getDefaultImageName(cwd: string): Promise<string> {
     const name = sanitiseTag(path.basename(cwd));
     const version = await findVersion(cwd);
-    let image = `${name}:${version}`;
-    if (imagePrefix) {
-        image = imagePrefix + "/" + image;
-    }
+    const image = dockerregistry.tag(`${name}:${version}`);
     return image;
 }
 

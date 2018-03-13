@@ -65,6 +65,16 @@
             "type": "object",
             "title": "Kubernetes configuration",
             "properties": {
+                "docker.defaultRegistry": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Default registry when tagging an image, empty string will target Dockerhub when pushing."
+                },
+                "docker.defaultRegistryPath": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Path within registry to push to."
+                },
                 "vs-kubernetes": {
                     "type": "object",
                     "description": "Kubernetes configuration",
@@ -89,7 +99,7 @@
                 "vsdocker.imageUser": {
                     "type": "string",
                     "default": null,
-                    "description": "Image prefix for docker images ie 'docker.io/brendanburns'"
+                    "description": "(Deprecated) Image prefix for docker images e.g. 'docker.io/brendanburns', 'myregistry.azurecr.io'. Overridden if docker.defaultRegistry or docker.defaultRegistryPath is present."
                 }
             }
         },
