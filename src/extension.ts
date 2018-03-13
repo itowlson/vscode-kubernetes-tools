@@ -708,12 +708,14 @@ function runKubernetes() {
 }
 
 function diagnosePushError(exitCode: number, error: string) : string {
-    if (error.includes("denied")) {
+    if (error.includes("denied") || error.includes("unauthorized")) {
+        // TODO: this needs reworking based on combinations of imageUser, defaultRegistry
+        // (blank for Docker Hub, or an actual registry) and defaultRegistryPath.
         const user = vscode.workspace.getConfiguration().get("vsdocker.imageUser", null);
         if (user) {
-            return "Failed to push to Docker Hub. Try running docker login.";
+            return "Failed to push to your container registry. Try logging in to your registry.";
         } else {
-            return "Failed to push to Docker Hub. Try setting vsdocker.imageUser.";
+            return "Failed to push to your container registry. Try setting vsdocker.imageUser.";
         }
     }
     return 'Image push failed.';
