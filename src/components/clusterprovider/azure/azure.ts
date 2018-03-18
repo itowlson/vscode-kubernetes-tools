@@ -13,25 +13,33 @@ import { AzureAccount } from './azure-account.api';
 let azureAccount: AzureAccount | null = null;
 let initComplete = false;
 
-export async function initAzureAccount() : Promise<void> {
+export enum AzureAccountStatus {
+    NotInstalled,
+    NotLoggedIn,
+    UnableToGetSubscriptions,
+    OK,
+}
+
+export async function initAzureAccount() : Promise<AzureAccountStatus> {
     if (initComplete) {
-        return;
+        return AzureAccountStatus.OK;
     }
 
     const azureAccountExtn = vscode.extensions.getExtension<AzureAccount>('ms-vscode.azure-account');
     if (azureAccountExtn) {
-        azureAccountExtn.activate().then(async (acct) => {
-            vscode.window.showInformationMessage(`azure-account status: ${acct.status}`);  // starts out as Initializing
-            azureAccount = acct;
-            await acct.waitForLogin();
-            await acct.waitForSubscriptions();
-            vscode.window.showInformationMessage(`azure-account status now: ${acct.status} ${acct.subscriptions.length} ${acct.sessions.length}`);  // starts out as Initializing
-            initComplete = true;
-            // poke the tree provider or wherever else needs to be updated (e.g. register something (and push it to subscriptions))
-        });
-    } else {
-        vscode.window.showInformationMessage(`azure-account status: NOT INSTALLED`);
+        azureAccount = await azureAccountExtn.activate();
+        if (!await azureAccount.waitForLogin()) {
+            return AzureAccountStatus.NotLoggedIn;
+        }
+        if (!await azureAccount.waitForSubscriptions()) {
+            return AzureAccountStatus.UnableToGetSubscriptions;
+        }
         initComplete = true;
+        // TODO: do we need to poke the tree provider or something?
+        // TODO: do we need to hook the status changed or subs changed events?
+        return AzureAccountStatus.OK;
+    } else {
+        return AzureAccountStatus.NotInstalled;
     }
 }
 

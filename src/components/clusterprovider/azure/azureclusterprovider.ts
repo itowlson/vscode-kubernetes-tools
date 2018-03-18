@@ -1,3 +1,4 @@
+import * as vscode from 'vscode';
 import * as restify from 'restify';
 import * as portfinder from 'portfinder';
 import * as clusterproviderregistry from '../clusterproviderregistry';
@@ -41,8 +42,6 @@ export async function init(registry: clusterproviderregistry.ClusterProviderRegi
         registry.register({id: 'acs', displayName: "Azure Container Service", port: wizardPort, supportedActions: ['create','configure']});
         registry.register({id: 'aks', displayName: "Azure Kubernetes Service", port: wizardPort, supportedActions: ['create','configure']});
     }
-
-    await azure.initAzureAccount();
 }
 
 class HtmlServer {
@@ -73,12 +72,27 @@ class HtmlServer {
     }
 
     async handleRequest(handler: HtmlRequestHandler, request: restify.Request, requestData: any, response: restify.Response, next: restify.Next) {
-        const html = await handler(request.query["step"], this.context, requestData);
+        const html = await tryHandleRequest(handler, this.context, request, requestData);
     
         response.contentType = 'text/html';
         response.send("<html><body><style id='styleholder'></style>" + html + "</body></html>");
         
         next();
+    }
+}
+
+async function tryHandleRequest(handler: HtmlRequestHandler, context: azure.Context, request: restify.Request, requestData: any) : Promise<string> {
+    const azureAccountStatus = await azure.initAzureAccount();
+    switch (azureAccountStatus) {
+        case azure.AzureAccountStatus.NotInstalled:
+            return renderAccountExtensionError('The Azure Account exension is not installed.  Please install it from the Extensions tab or Visual Studio Code Marketplace.');
+        case azure.AzureAccountStatus.NotLoggedIn:
+            vscode.commands.executeCommand('azure-account.login');
+            return renderAccountExtensionError('You need to sign into the Azure Account extension.  See the login notification, or choose Azure: Sign In from the command palette, then restart this wizard.');
+        case azure.AzureAccountStatus.UnableToGetSubscriptions:
+            return renderAccountExtensionError("The Azure Account extension couldn't get your Azure subscriptions.  Check network connectivity, then restart this wizard.");
+        case azure.AzureAccountStatus.OK:
+            return await handler(request.query["step"], context, requestData);
     }
 }
 
@@ -433,6 +447,13 @@ function renderExternalError<T>(last: ActionResult<T>) : string {
     <p class='error'>An error occurred while ${last.actionDescription}.</p>
     <p><b>Details</b></p>
     <p>${last.result.error}</p>`;
+}
+
+function renderAccountExtensionError(message: string) : string {
+    return `
+    <h1>Azure account error</h1>
+    ${styles()}
+    <p class='error'>${message}.</p>`;
 }
 
 // Utility helpers
