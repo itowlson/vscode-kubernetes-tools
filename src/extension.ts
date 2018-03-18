@@ -93,7 +93,7 @@ export async function activate(context) : Promise<extensionapi.ExtensionAPI> {
 
         // Commands - Kubernetes
         registerCommand('extension.vsKubernetesCreate',
-            maybeRunKubernetesCommandForActiveWindow.bind(this, 'create -f')
+            () => maybeRunKubernetesCommandForActiveWindow('create -f')
         ),
         registerCommand('extension.vsKubernetesDelete', deleteKubernetes),
         registerCommand('extension.vsKubernetesApply', applyKubernetes),
@@ -201,7 +201,7 @@ export async function activate(context) : Promise<extensionapi.ExtensionAPI> {
 
     subscriptions.forEach((element) => {
         context.subscriptions.push(element);
-    }, this);
+    });
 
     await registerYamlSchemaSupport();
     
