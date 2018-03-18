@@ -8,12 +8,16 @@ import { Errorable, ActionResult, fromShellJson, fromShellExitCode } from '../..
 import * as compareVersions from 'compare-versions';
 import { sleep } from '../../../sleep';
 // azure-account special dependency (externally sourced but has to be built into project)
-import { AzureAccount } from '../../../azure-account.api';
+import { AzureAccount } from './azure-account.api';
 
 let azureAccount: AzureAccount | null = null;
 let initComplete = false;
 
-export async function init() : Promise<void> {
+export async function initAzureAccount() : Promise<void> {
+    if (initComplete) {
+        return;
+    }
+
     const azureAccountExtn = vscode.extensions.getExtension<AzureAccount>('ms-vscode.azure-account');
     if (azureAccountExtn) {
         azureAccountExtn.activate().then(async (acct) => {
@@ -26,6 +30,7 @@ export async function init() : Promise<void> {
             // poke the tree provider or wherever else needs to be updated (e.g. register something (and push it to subscriptions))
         });
     } else {
+        vscode.window.showInformationMessage(`azure-account status: NOT INSTALLED`);
         initComplete = true;
     }
 }

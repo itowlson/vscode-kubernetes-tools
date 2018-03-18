@@ -41,6 +41,8 @@ export async function init(registry: clusterproviderregistry.ClusterProviderRegi
         registry.register({id: 'acs', displayName: "Azure Container Service", port: wizardPort, supportedActions: ['create','configure']});
         registry.register({id: 'aks', displayName: "Azure Kubernetes Service", port: wizardPort, supportedActions: ['create','configure']});
     }
+
+    await azure.initAzureAccount();
 }
 
 class HtmlServer {

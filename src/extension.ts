@@ -48,10 +48,6 @@ import { registerYamlSchemaSupport } from './yaml-support/yaml-schema';
 import * as clusterproviderregistry from './components/clusterprovider/clusterproviderregistry';
 import * as azureclusterprovider from './components/clusterprovider/azure/azureclusterprovider';
 
-// azure-account special dependency (externally sourced but has to be built into project)
-import { AzureAccount } from './azure-account.api';
-import * as azure from './azure';
-
 let explainActive = false;
 let swaggerSpecPromise = null;
 
@@ -82,7 +78,6 @@ export const HELM_TPL_MODE: vscode.DocumentFilter = { language: "helm", scheme: 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export async function activate(context) : Promise<extensionapi.ExtensionAPI> {
-    azure.init();
     kubectl.checkPresent('activation');
 
     const treeProvider = explorer.create(kubectl, host);
