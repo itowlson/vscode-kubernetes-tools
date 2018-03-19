@@ -503,7 +503,7 @@
     },
     "dependencies": {
         "azure-arm-resource": "^2.0.0-preview",
-        "azure-arm-website": "^1.0.0-preview",
+        "azure-arm-containerservice":"^1.0.0-preview",
         "compare-versions": "^3.1.0",
         "docker-file-parser": "^1.0.3",
         "dockerfile-parse": "^0.2.0",
@@ -527,6 +527,7 @@
     "devDependencies": {
         "@types/mocha": "^2.2.32",
         "@types/node": "^6.0.40",
+        "@types/azure": "^0.9.19",
         "gulp": "^3.9.1",
         "gulp-tslint": "^8.1.2",
         "mocha": "^2.3.3",

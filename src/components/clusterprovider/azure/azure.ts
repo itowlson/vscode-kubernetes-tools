@@ -1,6 +1,9 @@
 'use strict';
 
 import * as vscode from 'vscode';
+import ContainerServiceClient = require('azure-arm-containerservice');
+import * as operations from 'azure-arm-containerservice/lib/operations';
+import * as models from 'azure-arm-containerservice/lib/models';
 
 import { Shell } from '../../../shell';
 import { FS } from '../../../fs';
@@ -42,16 +45,6 @@ export async function initAzureAccount() : Promise<AzureAccountStatus> {
         return AzureAccountStatus.NotInstalled;
     }
 }
-
-async function waitForAccountExtension() : Promise<void> {
-    while (!initComplete) {
-        await sleep(50);  // yes, it's ugly
-    }
-}
-
-// function sleep(ms: number) : Promise<void> {
-//     return new Promise<void>((resolve) => setTimeout(resolve, ms));
-// }
 
 export interface Context {
     readonly fs: FS;
@@ -159,7 +152,33 @@ export async function setSubscriptionAsync(context: Context, subscription: strin
     return fromShellExitCode(sr);
 }
 
+interface PartialList<T> extends Array<T> {
+    readonly nextLink?: string;
+}
+
+interface PartialListingClient<T> {
+    list(): Promise<PartialList<T>>;
+    listNext(nextLink: string): Promise<PartialList<T>>;
+}
+
+async function listAll<T>(client: PartialListingClient<T>) : Promise<T[]> {
+    let all : T[] = [];
+    let nextLink : string | undefined = undefined;
+    while (true) {
+        const page = nextLink ? await client.listNext(nextLink) : await client.list();
+        all.push(...page);
+        if (page.nextLink) {
+            nextLink = page.nextLink;
+        } else {
+            return all;
+        }
+    }
+}
+
 export async function getClusterList(context: Context, subscription: string, clusterType: string) : Promise<ActionResult<ClusterInfo[]>> {
+    const client = new ContainerServiceClient();
+    const services = await listAll<models.ContainerService>(client.containerServices);
+    
     // log in
     const login = await setSubscriptionAsync(context, subscription);
     if (!login.succeeded) {
