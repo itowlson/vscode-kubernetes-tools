@@ -83,9 +83,14 @@ export interface WaitResult {
     readonly stillWaiting?: boolean;
 }
 
+export interface SubscriptionInfo {
+    readonly displayName: string;
+    readonly id: string;
+}
+
 const MIN_AZ_CLI_VERSION = '2.0.23';
 
-export async function getSubscriptionList(context: Context, forCommand: string) : Promise<ActionResult<string[]>> {
+export async function getSubscriptionList(context: Context, forCommand: string) : Promise<ActionResult<SubscriptionInfo[]>> {
     // check for prerequisites
     const prerequisiteErrors = await verifyPrerequisitesAsync(context, forCommand);
     if (prerequisiteErrors.length > 0) {
@@ -140,10 +145,12 @@ function prereqCheckSSHKeys(context: Context, errors: Array<String>) {
     }
 }
 
-async function listSubscriptionsAsync(context: Context) : Promise<Errorable<string[]>> {
-    const sr = await context.shell.exec("az account list --all --query [*].name -ojson");
-
-    return fromShellJson<string[]>(sr);
+async function listSubscriptionsAsync(context: Context) : Promise<Errorable<SubscriptionInfo[]>> {
+    return {
+        succeeded: true,
+        result: azureAccount.filters.map((f) => { return { id: f.subscription.subscriptionId, displayName: f.subscription.displayName }; }),
+        error: []
+    };
 }
 
 export async function setSubscriptionAsync(context: Context, subscription: string) : Promise<Errorable<void>> {
@@ -175,49 +182,63 @@ async function listAll<T>(client: PartialListingClient<T>) : Promise<T[]> {
     }
 }
 
-export async function getClusterList(context: Context, subscription: string, clusterType: string) : Promise<ActionResult<ClusterInfo[]>> {
-    const client = new ContainerServiceClient();
-    const services = await listAll<models.ContainerService>(client.containerServices);
-    
-    // log in
-    const login = await setSubscriptionAsync(context, subscription);
-    if (!login.succeeded) {
-        return {
-            actionDescription: 'logging into subscription',
-            result: { succeeded: false, result: [], error: login.error }
-        };
-    }
+export async function getClusterList(context: Context, subscriptionId: string, clusterType: string) : Promise<ActionResult<ClusterInfo[]>> {
+    const session = azureAccount.filters.find((f) => f.subscription.subscriptionId === subscriptionId).session;
+    const client = new ContainerServiceClient(session.credentials, subscriptionId);
+    // ACS
+    const clusters = (await listAll<models.ContainerService>(client.containerServices))
+                            .filter((cs: models.ContainerService) => cs.orchestratorProfile.orchestratorType === 'Kubernetes')
+                            .map((cs) => { return { name: cs.name, resourceGroup: rg(cs.id) }; });
 
-    // list clusters
-    const clusters = await listClustersAsync(context, clusterType);
     return {
         actionDescription: 'listing clusters',
-        result: clusters
+        result: { succeeded: true, result: clusters, error: [] }
     };
+    
+    // // log in
+    // const login = await setSubscriptionAsync(context, subscriptionId);
+    // if (!login.succeeded) {
+    //     return {
+    //         actionDescription: 'logging into subscription',
+    //         result: { succeeded: false, result: [], error: login.error }
+    //     };
+    // }
+
+    // // list clusters
+    // const clusters = await listClustersAsync(context, clusterType);
+    // return {
+    //     actionDescription: 'listing clusters',
+    //     result: clusters
+    // };
 }
 
-async function listClustersAsync(context: Context, clusterType: string) : Promise<Errorable<ClusterInfo[]>> {
-    let cmd = getListClustersCommand(context, clusterType);
-    const sr = await context.shell.exec(cmd);
-
-    return fromShellJson<ClusterInfo[]>(sr);
+function rg(id: string) : string {
+    const bits = id.split("/");
+    return bits[4];
 }
 
-function listClustersFilter(clusterType: string): string {
-    if (clusterType === 'acs') {
-        return '?orchestratorProfile.orchestratorType==`Kubernetes`';
-    }
-    return '';
-}
+// async function listClustersAsync(context: Context, clusterType: string) : Promise<Errorable<ClusterInfo[]>> {
+//     let cmd = getListClustersCommand(context, clusterType);
+//     const sr = await context.shell.exec(cmd);
 
-function getListClustersCommand(context: Context, clusterType: string) : string {
-    let filter = listClustersFilter(clusterType);
-    let query = `[${filter}].{name:name,resourceGroup:resourceGroup}`;
-    if (context.shell.isUnix()) {
-        query = `'${query}'`;
-    }
-    return `az ${getClusterCommand(clusterType)} list --query ${query} -ojson`;
-}
+//     return fromShellJson<ClusterInfo[]>(sr);
+// }
+
+// function listClustersFilter(clusterType: string): string {
+//     if (clusterType === 'acs') {
+//         return '?orchestratorProfile.orchestratorType==`Kubernetes`';
+//     }
+//     return '';
+// }
+
+// function getListClustersCommand(context: Context, clusterType: string) : string {
+//     let filter = listClustersFilter(clusterType);
+//     let query = `[${filter}].{name:name,resourceGroup:resourceGroup}`;
+//     if (context.shell.isUnix()) {
+//         query = `'${query}'`;
+//     }
+//     return `az ${getClusterCommand(clusterType)} list --query ${query} -ojson`;
+// }
 
 async function listLocations(context: Context) : Promise<Errorable<Locations>> {
     let query = "[].{name:name,displayName:displayName}";

@@ -170,13 +170,13 @@ async function promptForSubscription(previousData: any, context: azure.Context, 
         return renderCliError('PromptForSubscription', subscriptionList);
     }
 
-    const subscriptions : string[] = subscriptionList.result.result;
+    const subscriptions = subscriptionList.result.result;
 
     if (!subscriptions || !subscriptions.length) {
         return renderNoOptions('PromptForSubscription', 'No Azure subscriptions', 'You have no Azure subscriptions.');
     }
 
-    const options = subscriptions.map((s) => `<option value="${s}">${s}</option>`).join('\n');
+    const options = subscriptions.map((s) => `<option value="${s.id}">${s.displayName}</option>`).join('\n');
     return formPage({
         stepId: 'PromptForSubscription',
         title: 'Choose subscription',
