@@ -1,4 +1,4 @@
-import { Terminal } from 'vscode';
+import { Terminal, WorkspaceConfiguration } from 'vscode';
 import { Host } from './host';
 import { FS } from './fs';
 import { Shell, ShellHandler, ShellResult } from './shell';
@@ -25,13 +25,14 @@ interface Context {
     readonly fs: FS;
     readonly shell: Shell;
     readonly installDependenciesCallback: () => void;
+    readonly extensionConfig: WorkspaceConfiguration;
     binFound: boolean;
     binPath: string;
 }
 
 class KubectlImpl implements Kubectl {
-    constructor(host: Host, fs: FS, shell: Shell, installDependenciesCallback: () => void, kubectlFound: boolean) {
-        this.context = { host : host, fs : fs, shell : shell, installDependenciesCallback : installDependenciesCallback, binFound : kubectlFound, binPath : 'kubectl' };
+    constructor(host: Host, fs: FS, shell: Shell, installDependenciesCallback: () => void, extensionConfig: WorkspaceConfiguration, kubectlFound: boolean) {
+        this.context = { host : host, fs : fs, shell : shell, installDependenciesCallback : installDependenciesCallback, extensionConfig: extensionConfig, binFound : kubectlFound, binPath : 'kubectl' };
     }
 
     private readonly context: Context;
@@ -76,8 +77,8 @@ class KubectlImpl implements Kubectl {
     }
 }
 
-export function create(host: Host, fs: FS, shell: Shell, installDependenciesCallback: () => void): Kubectl {
-    return new KubectlImpl(host, fs, shell, installDependenciesCallback, false);
+export function create(host: Host, fs: FS, shell: Shell, installDependenciesCallback: () => void, extensionConfig: WorkspaceConfiguration): Kubectl {
+    return new KubectlImpl(host, fs, shell, installDependenciesCallback, extensionConfig, false);
 }
 
 type CheckPresentMessageMode = 'command' | 'activation' | 'silent';
@@ -145,10 +146,12 @@ async function invokeAsyncWithProgress(context: Context, command: string, progre
 
 async function invokeInTerminal(context: Context, command: string, terminal: Terminal): Promise<void> {
     if (await checkPresent(context, 'command')) {
+        const kubeconfigedCommand = kubeconfigify(context, command);
         let bin = baseKubectlPath(context).trim();
         if (bin.indexOf(" ") > -1 && !/^['"]/.test(bin)) {
             bin = `"${bin}"`;
         }
+        // TODO: respect KUBECONFIG
         terminal.sendText(`${bin} ${command}`);
         terminal.show();
     }
@@ -197,4 +200,24 @@ async function asLines(context: Context, command: string): Promise<string[] | Sh
 function path(context: Context): string {
     let bin = baseKubectlPath(context);
     return binutil.execPath(context.shell, bin);
+}
+
+function kubeconfigify(context: Context, command: string): string {
+    const kubeconfig: string = context.extensionConfig['vs-kubernetes.kubeconfig'];
+    if (kubeconfig) {
+        // We can't naively append --kubeconfig as the last option, because the command might
+        // contain a -- option (e.g. "exec ... -- bash").  So insert it immediately before the
+        // first option (if there is one).
+        const argsParse = command.indexOf(' -');
+        if (argsParse > 0) {
+            // There are options - insert the kubeconfig switch before them
+            const cmd = command.substr(0, argsParse);
+            const args = command.substr(argsParse + 1);
+            return `${cmd} --kubeconfig=${kubeconfig}${args}`;
+        } else {
+            // There are no options - we can be naive
+            return `${command} --kubeconfig='${kubeconfig}'`;
+        }
+    }
+    return command;
 }

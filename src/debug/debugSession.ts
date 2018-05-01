@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as opn from 'opn';
 import * as path from "path";
 import * as portfinder from "portfinder";
-import { ChildProcess, spawn as spawnChildProcess } from "child_process";
+import { ChildProcess, spawn as spawnChildProcess, SpawnOptions } from "child_process";
 
 import { IDebugProvider } from "./debugProvider";
 import * as providerRegistry from "./providerRegistry";
@@ -333,8 +333,10 @@ export class DebugSession implements IDebugSession {
         });
         portMapping.push(proxyDebugPort + ":" + debugPort);
 
+        const kubectlProxyProcess = spawnChildProcess(kubectl.path(), ["port-forward", podName, ...portMapping], shell.execOpts());
+
         return {
-            proxyProcess: spawnChildProcess(kubectl.path(), ["port-forward", podName, ...portMapping]),
+            proxyProcess: kubectlProxyProcess,
             proxyDebugPort,
             proxyAppPort
         };

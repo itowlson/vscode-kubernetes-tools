@@ -61,7 +61,8 @@ import { installHelm, installDraft, installKubectl } from './components/installe
 let explainActive = false;
 let swaggerSpecPromise = null;
 
-const kubectl = kubectlCreate(host, fs, shell, installDependencies);
+export const extensionConfig = vscode.workspace.getConfiguration('vs-kubernetes');
+const kubectl = kubectlCreate(host, fs, shell, installDependencies, extensionConfig);
 const draft = draftCreate(host, fs, shell, installDependencies);
 const configureFromClusterUI = configureFromCluster.uiProvider();
 const createClusterUI = createCluster.uiProvider();
@@ -1131,7 +1132,13 @@ async function execKubernetesCore(isTerminal): Promise<void> {
 
 function execTerminalOnPod(podName: string, terminalCmd: string) {
     const terminalExecCmd: string[] = ['exec', '-it', podName, '--', terminalCmd];
-    const term = vscode.window.createTerminal(`${terminalCmd} on ${podName}`, kubectl.path(), terminalExecCmd);
+    const terminalOptions: vscode.TerminalOptions = {
+        name: `${terminalCmd} on ${podName}`,
+        shellPath: kubectl.path(),
+        shellArgs: terminalExecCmd,
+        env: shell.execOpts()
+    };
+    const term = vscode.window.createTerminal(terminalOptions);
     term.show();
 }
 

@@ -336,6 +336,7 @@ async function getCredentials(context: Context, clusterType: string, clusterName
     let attempts = 0;
     while (true) {
         attempts++;
+        // TODO: respect KUBECONFIG config setting
         const cmd = `az ${getClusterCommandAndSubcommand(clusterType)} get-credentials -n ${clusterName} -g ${clusterGroup}`;
         const sr = await context.shell.exec(cmd);
 

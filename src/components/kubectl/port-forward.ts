@@ -5,11 +5,11 @@ import { create as kubectlCreate, Kubectl } from '../../kubectl';
 import { fs } from '../../fs';
 import { shell } from '../../shell';
 import { host } from '../../host';
-import { findAllPods, tryFindKindNameFromEditor, FindPodsResult, installDependencies } from '../../extension';
+import { findAllPods, tryFindKindNameFromEditor, FindPodsResult, installDependencies, extensionConfig } from '../../extension';
 import { QuickPickOptions } from 'vscode';
 import * as portFinder from 'portfinder';
 
-const kubectl = kubectlCreate(host, fs, shell, installDependencies);
+const kubectl = kubectlCreate(host, fs, shell, installDependencies, extensionConfig);
 const PORT_FORWARD_TERMINAL = 'kubectl port-forward';
 const MAX_PORT_COUNT = 65535;
 
