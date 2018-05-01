@@ -25,13 +25,13 @@ interface Context {
     readonly fs: FS;
     readonly shell: Shell;
     readonly installDependenciesCallback: () => void;
-    readonly extensionConfig: WorkspaceConfiguration;
+    readonly extensionConfig: () => WorkspaceConfiguration;
     binFound: boolean;
     binPath: string;
 }
 
 class KubectlImpl implements Kubectl {
-    constructor(host: Host, fs: FS, shell: Shell, installDependenciesCallback: () => void, extensionConfig: WorkspaceConfiguration, kubectlFound: boolean) {
+    constructor(host: Host, fs: FS, shell: Shell, installDependenciesCallback: () => void, extensionConfig: () => WorkspaceConfiguration, kubectlFound: boolean) {
         this.context = { host : host, fs : fs, shell : shell, installDependenciesCallback : installDependenciesCallback, extensionConfig: extensionConfig, binFound : kubectlFound, binPath : 'kubectl' };
     }
 
@@ -77,7 +77,7 @@ class KubectlImpl implements Kubectl {
     }
 }
 
-export function create(host: Host, fs: FS, shell: Shell, installDependenciesCallback: () => void, extensionConfig: WorkspaceConfiguration): Kubectl {
+export function create(host: Host, fs: FS, shell: Shell, installDependenciesCallback: () => void, extensionConfig: () => WorkspaceConfiguration): Kubectl {
     return new KubectlImpl(host, fs, shell, installDependenciesCallback, extensionConfig, false);
 }
 
@@ -152,7 +152,7 @@ async function invokeInTerminal(context: Context, command: string, terminal: Ter
             bin = `"${bin}"`;
         }
         // TODO: respect KUBECONFIG
-        terminal.sendText(`${bin} ${command}`);
+        terminal.sendText(`${bin} ${kubeconfigedCommand}`);
         terminal.show();
     }
 }
@@ -203,7 +203,7 @@ function path(context: Context): string {
 }
 
 function kubeconfigify(context: Context, command: string): string {
-    const kubeconfig: string = context.extensionConfig['vs-kubernetes.kubeconfig'];
+    const kubeconfig: string = context.extensionConfig()['vs-kubernetes.kubeconfig'];
     if (kubeconfig) {
         // We can't naively append --kubeconfig as the last option, because the command might
         // contain a -- option (e.g. "exec ... -- bash").  So insert it immediately before the
@@ -212,7 +212,7 @@ function kubeconfigify(context: Context, command: string): string {
         if (argsParse > 0) {
             // There are options - insert the kubeconfig switch before them
             const cmd = command.substr(0, argsParse);
-            const args = command.substr(argsParse + 1);
+            const args = command.substr(argsParse);
             return `${cmd} --kubeconfig=${kubeconfig}${args}`;
         } else {
             // There are no options - we can be naive

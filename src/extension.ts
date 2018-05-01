@@ -61,7 +61,7 @@ import { installHelm, installDraft, installKubectl } from './components/installe
 let explainActive = false;
 let swaggerSpecPromise = null;
 
-export const extensionConfig = vscode.workspace.getConfiguration('vs-kubernetes');
+export const extensionConfig = () => vscode.workspace.getConfiguration('vs-kubernetes');
 const kubectl = kubectlCreate(host, fs, shell, installDependencies, extensionConfig);
 const draft = draftCreate(host, fs, shell, installDependencies);
 const configureFromClusterUI = configureFromCluster.uiProvider();
