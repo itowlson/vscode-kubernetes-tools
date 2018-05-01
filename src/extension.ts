@@ -1126,7 +1126,7 @@ async function execKubernetesCore(isTerminal): Promise<void> {
         return;
     }
 
-    const execCmd = ' exec ' + pod.metadata.name + ' ' + cmd;
+    const execCmd = ' exec ' + pod.metadata.name + ' -- ' + cmd;
     kubectl.invokeInTerminal(execCmd);
 }
 
