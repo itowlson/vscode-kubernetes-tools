@@ -131,9 +131,12 @@ export async function dashboardKubernetes (): Promise<void> {
     terminal = vscode.window.createTerminal(TERMINAL_NAME);
     vscode.window.onDidCloseTerminal(onClosedTerminal);
 
+    const kubeconfig: string = vscode.workspace.getConfiguration('vs-kubernetes')['vs-kubernetes.kubeconfig-path'];
+    const configOption = kubeconfig ? ` --kubeconfig='${kubeconfig}'` : '';
+
     // stdout is also written to a file via `tee`. We read this file as a stream
     // to listen for when the server is ready.
-    terminal.sendText(`kubectl proxy | tee ${PROXY_OUTPUT_FILE}`);
+    terminal.sendText(`kubectl proxy${configOption} | tee ${PROXY_OUTPUT_FILE}`);
     terminal.show(true);
 }
 
