@@ -256,6 +256,7 @@ export function helmExec(args: string, fn) {
     const configuredBin: string | undefined = vscode.workspace.getConfiguration('vs-kubernetes')['vs-kubernetes.helm-path'];
     const bin = configuredBin ? `"${configuredBin}"` : "helm";
     const cmd = bin + " " + args;
+    // TODO: set KUBECONFIG
     shell.exec(cmd, fn);
 }
 

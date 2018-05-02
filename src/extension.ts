@@ -1136,7 +1136,7 @@ function execTerminalOnPod(podName: string, terminalCmd: string) {
         name: `${terminalCmd} on ${podName}`,
         shellPath: kubectl.path(),
         shellArgs: terminalExecCmd,
-        env: shell.execOpts()
+        env: shell.execOpts().env
     };
     const term = vscode.window.createTerminal(terminalOptions);
     term.show();
@@ -1643,13 +1643,16 @@ async function execDraftUp() {
 
     // if it's already running... how can we tell?
     const draftPath = await draft.path();
-    if (shell.isUnix()) {
-        const term = vscode.window.createTerminal('draft up', `bash`, [ '-c', `${draftPath} up ; bash` ]);
-        term.show(true);
-    } else {
-        const term = vscode.window.createTerminal('draft up', 'powershell.exe', [ '-NoExit', `${draftPath}`, `up` ]);
-        term.show(true);
-    }
+    const shellPath = shell.isUnix() ? "bash" : "powershell.exe";
+    const shellArgs = shell.isUnix() ? [ '-c', `${draftPath} up ; bash` ] : [ '-NoExit', `${draftPath}`, `up` ];
+    const terminalOptions: vscode.TerminalOptions = {
+        name: "draft up",
+        shellPath: shellPath,
+        shellArgs: shellArgs,
+        env: shell.execOpts().env,
+    };
+    const term = vscode.window.createTerminal(terminalOptions);
+    term.show(true);
 }
 
 function editorIsActive(): boolean {
