@@ -54,8 +54,14 @@ function handleClusterTypeSelection(request: restify.Request, response: restify.
     reporter.sendTelemetryEvent("cloudselection", { action: action, clusterType: clusterType });
 
     const clusterProvider = clusterproviderregistry.get().list().find((cp) => cp.id === clusterType);  // TODO: move into clusterproviderregistry
-    const url = `http://localhost:${clusterProvider.port}/${action}?clusterType=${clusterProvider.id}`;
-    response.redirect(307, url, next);
+    if (clusterProvider) {
+        const url = `http://localhost:${clusterProvider.port}/${action}?clusterType=${clusterProvider.id}`;
+        response.redirect(307, url, next);
+    } else {
+        // Should never happen
+        response.status(500);
+        response.send('No matching cluster provider');
+    }
 }
 
 function handleGetProviderListHtml(action: clusterproviderregistry.ClusterProviderAction): string {

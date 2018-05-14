@@ -33,7 +33,12 @@ export class DraftRuntime extends EventEmitter {
 			return;
 		}
 
-		if (!this._draft.isFolderMapped(vscode.workspace.rootPath)) {
+		const rootPath = vscode.workspace.rootPath;
+		if (!rootPath) {
+			host.showErrorMessage("This command requires an open folder.");
+			return;
+		}
+		if (!this._draft.isFolderMapped(rootPath)) {
 			host.showErrorMessage("This folder does not contain a Draft app. Run draft create first!");
 			return;
 		}
@@ -104,7 +109,7 @@ async function waitConnectionReady(proc: ChildProcess, config: vscode.DebugConfi
 }
 
 // TODO - add other debugger type outputs here
-function canAttachDebugger(data: string, config: vscode.DebugConfiguration): boolean {
+function canAttachDebugger(data: string, config: vscode.DebugConfiguration): boolean | undefined {
 	switch (config['original-debug'].type) {
 		case 'node': {
 			if (config['original-debug'].localRoot == '' || config['original-debug'].localRoot == null) {
@@ -122,6 +127,8 @@ function canAttachDebugger(data: string, config: vscode.DebugConfiguration): boo
 				return true;
 		}
 	}
+
+	return undefined;
 }
 
 function subscribeToDataEvent(readable: Readable, outputChannel: OutputChannel): void {

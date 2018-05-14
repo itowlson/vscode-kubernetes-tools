@@ -163,7 +163,7 @@ export async function getPods(kubectl: Kubectl, selector: any): Promise<Pod[]> {
 
     const currentNS = await currentNamespace(kubectl);
 
-    const labels = [];
+    const labels: string[] = [];
     let matchLabelObj = selector;
     if (selector.matchLabels) {
         matchLabelObj = selector.matchLabels;

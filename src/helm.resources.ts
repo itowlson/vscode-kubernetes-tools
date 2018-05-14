@@ -24,7 +24,7 @@ export class Resources {
         // schemata on demand, which means we won't have an exhaustive list, but we are
         // more likely to get the ones that this user is actually using, including
         // TPRs.
-        let res = [];
+        let res: vscode.CompletionItem[] = [];
         let path = filepath.join(schemaDir, kversion);
         shelljs.ls(path).forEach((item) => {
             let itemPath = filepath.join(path, item);
@@ -48,7 +48,7 @@ export class Resources {
 
     // Extract hover documentation from a Swagger model.
     fromSchema(schema): vscode.CompletionItem[] {
-        let res = [];
+        let res: vscode.CompletionItem[] = [];
         _.each(schema, (v, k) => {
             let i = k.lastIndexOf(".");
             //let version = k.substr(0, i)

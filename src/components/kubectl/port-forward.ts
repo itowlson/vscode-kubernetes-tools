@@ -32,6 +32,9 @@ export async function portForwardKubernetes (explorerNode?: any): Promise<void> 
         // The port forward option only appears on pod level workloads in the tree view.
         const podName = explorerNode.id;
         const portMapping = await promptForPort(podName);
+        if (!portMapping) {
+            return;
+        }
         portForwardToPod(podName, portMapping);
         return;
     } else {
@@ -54,6 +57,9 @@ export async function portForwardKubernetes (explorerNode?: any): Promise<void> 
             // The pod is described by the open document. Skip asking which pod to use and go straight to port-forward.
             const podSelection = portForwardablePods[0];
             const portMapping = await promptForPort(podSelection);
+            if (!portMapping) {
+                return;
+            }
             portForwardToPod(podSelection, portMapping);
             return;
         }
@@ -77,6 +83,9 @@ export async function portForwardKubernetes (explorerNode?: any): Promise<void> 
         }
 
         const portMapping = await promptForPort(podSelection);
+        if (!portMapping) {
+            return;
+        }
         portForwardToPod(podSelection, portMapping);
     }
 }
@@ -85,8 +94,8 @@ export async function portForwardKubernetes (explorerNode?: any): Promise<void> 
  * Given a pod name, prompts the user on what port to port-forward to, and validates numeric input.
  * @param podSelection The pod to port-forward to.
  */
-async function promptForPort (podSelection: string): Promise<PortMapping> {
-    let portString: string;
+async function promptForPort (podSelection: string): Promise<PortMapping | undefined> {
+    let portString: string | undefined;
 
     try {
         portString = await host.showInputBox(<QuickPickOptions>{
@@ -98,6 +107,11 @@ async function promptForPort (podSelection: string): Promise<PortMapping> {
         });
     } catch (e) {
         host.showErrorMessage("Could not validate on input port");
+        return undefined;
+    }
+
+    if (!portString) {
+        return undefined;
     }
 
     return buildPortMapping(portString);
@@ -108,7 +122,7 @@ async function promptForPort (podSelection: string): Promise<PortMapping> {
  * @param portMapping The portMapping string captured from an input field.
  * @returns An error string to be displayed, or undefined.
  */
-function validatePortMapping (portMapping: string): string {
+function validatePortMapping (portMapping: string): string | undefined {
     let localPort, targetPort;
     let splitMapping = portMapping.split(':');
 
@@ -171,7 +185,7 @@ async function findPortForwardablePods (): Promise<PortForwardFindPodsResult> {
     let kind, podName;
 
     // Find the pod type from the open editor.
-    if (kindFromEditor !== null) {
+    if (kindFromEditor) {
         let parts = kindFromEditor.split('/');
         kind = parts[0];
         podName = parts[1];
@@ -206,7 +220,7 @@ export async function portForwardToPod (podName: string, portMapping: PortMappin
 
     console.log(`port forwarding to pod ${podName} at port ${targetPort}`);
 
-    if (!localPort) {
+    if (!usedPort) {
         // the port key/value is the `minimum` port to assign.
         usedPort = await portFinder.getPortPromise({
             port: 10000

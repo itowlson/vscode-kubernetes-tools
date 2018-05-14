@@ -1,17 +1,17 @@
 import * as vscode from 'vscode';
 
 export class HelmRequirementsCodeLensProvider implements vscode.CodeLensProvider {
-    provideCodeLenses(doc: vscode.TextDocument, tok: vscode.CancellationToken): vscode.CodeLens[] {
+    provideCodeLenses(doc: vscode.TextDocument, tok: vscode.CancellationToken): vscode.ProviderResult<vscode.CodeLens[]> {
         if (!doc.fileName.endsWith("requirements.yaml")) {
-            return;
+            return undefined;
         }
 
         // Find the dependencies section
         let i = doc.getText().indexOf("dependencies:");
         let start = doc.positionAt(i);
         let range = doc.getWordRangeAtPosition(start);
-        if (range.isEmpty) {
-            return;
+        if (!range || range.isEmpty) {
+            return undefined;
         }
 
         let update = new vscode.CodeLens(range, {

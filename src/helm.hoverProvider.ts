@@ -72,12 +72,13 @@ export class HelmTemplateHoverProvider implements vscode.HoverProvider {
         return r.test(lineText);
     }
 
-    private findFunc(word: string): vscode.MarkedString[] | string{
+    private findFunc(word: string): vscode.MarkedString[] | undefined {
         for (const item of this.funcmap) {
             if (item.label == word) {
                 return [{language: "helm", value:`{{ ${ item.detail } }}`}, `${ item.documentation }`];
             }
         }
+        return undefined;
     }
 
     private inActionVal(doc: vscode.TextDocument, pos: vscode.Position, word: string): boolean {
@@ -86,18 +87,20 @@ export class HelmTemplateHoverProvider implements vscode.HoverProvider {
         return r.test(lineText);
     }
 
-    private findVal(word: string): vscode.MarkedString[] | string{
+    private findVal(word: string): vscode.MarkedString[] | undefined {
         for (const item of this.valmap) {
             if (item.label == word) {
                 return [{language: "helm", value:`{{ ${ item.detail } }}`}, `${ item.documentation }`];
             }
         }
+        return undefined;
     }
-    private findResourceDef(word: string): vscode.MarkedString[] | string {
+    private findResourceDef(word: string): vscode.MarkedString[] | undefined {
         for (const item of this.resmap) {
             if (item.label == word) {
                 return [{language: "helm", value:`${ item.detail }`}, `${ item.documentation }`];
             }
         }
+        return undefined;
     }
 }

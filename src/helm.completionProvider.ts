@@ -76,10 +76,10 @@ export class HelmTemplateCompletionProvider implements vscode.CompletionItemProv
             return this.funcmap.capabilitiesVals();
         } else if (lineUntil.endsWith(".Values.")) {
             if (!_.isPlainObject(this.valuesCache)) {
-                return;
+                return [];
             }
             let keys = _.keys(this.valuesCache);
-            let res = [];
+            let res: vscode.CompletionItem[] = [];
             keys.forEach((key) => {
                 res.push(this.funcmap.v(key, ".Values."+key, "In values.yaml: " + this.valuesCache[key]));
             });
@@ -130,7 +130,7 @@ export class HelmTemplateCompletionProvider implements vscode.CompletionItemProv
                 //logger.log("Found no matches for " + res[1])
                 return [];
             }
-            let k = [];
+            let k: vscode.CompletionItem[] = [];
             _.keys(cache).forEach((item) => {
                 // Build help text for each suggestion we found.
                 k.push(this.v(item, res[0] + item, "In values.yaml: " + cache[item]));

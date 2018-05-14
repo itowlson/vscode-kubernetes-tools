@@ -91,12 +91,14 @@ export async function helmCreate(): Promise<void> {
         prompt: "chart name",
         placeHolder: "mychart"
     }).then((name) => {
-        const fullpath = filepath.join(folder.uri.fsPath, name);
-        helmExec(`create "${fullpath}"`, (code, out, err) => {
-            if (code != 0) {
-                vscode.window.showErrorMessage(err);
-            }
-        });
+        if (name) {
+            const fullpath = filepath.join(folder.uri.fsPath, name);
+            helmExec(`create "${fullpath}"`, (code, out, err) => {
+                if (code != 0) {
+                    vscode.window.showErrorMessage(err);
+                }
+            });
+        }
     });
 }
 
@@ -163,16 +165,18 @@ export function pickChart(fn) {
                 fn(p);
                 return;
             default:
-                let paths = [];
+                let paths: string[] = [];
                 // TODO: This would be so much cooler if the QuickPick parsed the Chart.yaml
                 // and showed the chart name instead of the path.
                 matches.forEach((item) => {
                     paths.push(
-                        filepath.relative(vscode.workspace.rootPath, filepath.dirname(item.fsPath)) || "."
+                        filepath.relative(vscode.workspace.rootPath || '.', filepath.dirname(item.fsPath)) || "."
                     );
                 });
                 vscode.window.showQuickPick(paths).then((picked) => {
-                    fn(filepath.join(vscode.workspace.rootPath, picked));
+                    if (picked) {
+                        fn(filepath.join(vscode.workspace.rootPath || '.', picked));
+                    }
                 });
                 return;
         }
@@ -213,7 +217,7 @@ export function pickChartForFile(file: string, options: PickChartUIOptions, fn) 
                 fn(p);
                 return;
             default:
-                let paths = [];
+                let paths: string[] = [];
 
                 matches.forEach((item) => {
                     let dirname = filepath.dirname(item.fsPath);
@@ -225,7 +229,7 @@ export function pickChartForFile(file: string, options: PickChartUIOptions, fn) 
                     }
 
                     paths.push(
-                        filepath.relative(vscode.workspace.rootPath, filepath.dirname(item.fsPath))
+                        filepath.relative(vscode.workspace.rootPath || '.', filepath.dirname(item.fsPath))
                     );
                 });
 
@@ -236,7 +240,7 @@ export function pickChartForFile(file: string, options: PickChartUIOptions, fn) 
 
                 // For now, let's go with the top-most path (umbrella chart)
                 if (paths.length >= 1) {
-                    fn(filepath.join(vscode.workspace.rootPath, paths[0]));
+                    fn(filepath.join(vscode.workspace.rootPath || '.', paths[0]));
                     return;
                 }
                 return;
@@ -306,32 +310,34 @@ export function insertRequirement() {
         prompt: "Chart",
         placeHolder: "stable/redis",
     }).then((val) => {
-        let req = searchForChart(val);
-        if (!req) {
-            vscode.window.showErrorMessage(`Chart ${ val } not found`);
-            return;
+        if (val) {
+            let req = searchForChart(val);
+            if (!req) {
+                vscode.window.showErrorMessage(`Chart ${ val } not found`);
+                return;
+            }
+            let ed = vscode.window.activeTextEditor;
+            if (!ed) {
+                logger.log(YAML.stringify(req));
+                return;
+            }
+            ed.insertSnippet(new vscode.SnippetString(req.toString()));
         }
-        let ed = vscode.window.activeTextEditor;
-        if (!ed) {
-            logger.log(YAML.stringify(req));
-            return;
-        }
-        ed.insertSnippet(new vscode.SnippetString(req.toString()));
     });
 }
 
 // searchForChart takes a 'repo/name' and returns an entry suitable for requirements
-export function searchForChart(name: string, version?: string): Requirement {
+export function searchForChart(name: string, version?: string): Requirement | undefined {
     let parts = name.split("/", 2);
     if (parts.length != 2) {
         logger.log("Chart should be of the form REPO/CHARTNAME");
-        return;
+        return undefined;
     }
     let hh = helmHome();
     let reposFile = filepath.join(hh, "repository", "repositories.yaml");
     if (!fs.existsSync(reposFile)) {
         vscode.window.showErrorMessage("Helm repositories file " + reposFile + " not found.");
-        return;
+        return undefined;
     }
     let repos = YAML.load(reposFile);
     let req;

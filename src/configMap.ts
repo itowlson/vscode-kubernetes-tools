@@ -49,7 +49,7 @@ function removeKey(dictionary: any, keyToDelete: string) {
 
 export async function deleteKubernetesConfigFile(kubectl: Kubectl, obj: KubernetesFileObject, explorer: KubernetesExplorer) {
     const result = await vscode.window.showWarningMessage(`Are you sure you want to delete ${obj.id}? This can not be undone`, ...deleteMessageItems);
-    if (result.title !== deleteMessageItems[0].title) {
+    if (!result || (result.title !== deleteMessageItems[0].title)) {
         return;
     }
     const currentNS = await currentNamespace(kubectl);

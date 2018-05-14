@@ -20,7 +20,7 @@ const PROXY_OUTPUT_FILE = resolve(__dirname, 'proxy.out');
 const kubectl = kubectlCreate(host, fs, shell, installDependencies);
 
 // The instance of the terminal running Kubectl Dashboard
-let terminal: vscode.Terminal;
+let terminal: vscode.Terminal | null = null;
 
 /**
  * Determines if the selected cluster is AKS or not by examining
@@ -172,5 +172,7 @@ const onStreamData = (data: string) => {
 
     // Maybe we've bound to the port already outside of the extension?
     vscode.window.showErrorMessage("Could not start the Kubernetes Dashboard. Is it already running?");
-    terminal.dispose();
+    if (terminal) {
+        terminal.dispose();
+    }
 };

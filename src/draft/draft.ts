@@ -8,7 +8,7 @@ export interface Draft {
     checkPresent(mode: CheckPresentMode): Promise<boolean>;
     isFolderMapped(path: string): boolean;
     packs(): Promise<string[] | undefined>;
-    invoke(args: string): Promise<ShellResult>;
+    invoke(args: string): Promise<ShellResult | undefined>;
     up(): Promise<void>;
 }
 
@@ -49,7 +49,7 @@ class DraftImpl implements Draft {
         return packs(this.context);
     }
 
-    invoke(args: string): Promise<ShellResult> {
+    invoke(args: string): Promise<ShellResult | undefined> {
         return invoke(this.context, args);
     }
 
@@ -80,11 +80,12 @@ async function packs(context: Context): Promise<string[] | undefined> {
     return undefined;
 }
 
-async function invoke(context: Context, args: string): Promise<ShellResult> {
+async function invoke(context: Context, args: string): Promise<ShellResult | undefined> {
     if (await checkPresent(context, CheckPresentMode.Alert)) {
         const result = context.shell.exec(context.binPath + ' ' + args);
         return result;
     }
+    return undefined;
 }
 
 async function up(context: Context): Promise<void> {
@@ -101,7 +102,9 @@ async function up(context: Context): Promise<void> {
 
 async function path(context: Context): Promise<string | undefined> {
     let bin = await pathCore(context);
-    return binutil.execPath(context.shell, bin);
+    if (bin) {
+        return binutil.execPath(context.shell, bin);
+    }
 }
 
 async function pathCore(context: Context): Promise<string | undefined> {
