@@ -1,6 +1,18 @@
-import * as clusterproviderregistry from './components/clusterprovider/clusterproviderregistry';
+export interface RemovedVersion {
+    readonly status: 'removed';
+}
+
+export interface UnknownVersion {
+    readonly status: 'unknown';
+}
+
+export interface SupportedVersion {
+    readonly status: 'supported';
+    readonly api: any;
+}
+
+export type ExtensionAPIVersion = RemovedVersion | UnknownVersion | SupportedVersion;
 
 export interface ExtensionAPI {
-    readonly apiVersion: string;
-    readonly clusterProviderRegistry: clusterproviderregistry.ClusterProviderRegistry;
+    version(version: string): ExtensionAPIVersion;
 }

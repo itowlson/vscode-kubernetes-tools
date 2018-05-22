@@ -279,9 +279,23 @@ export async function activate(context): Promise<extensionapi.ExtensionAPI> {
     }, this);
     await registerYamlSchemaSupport();
     vscode.workspace.registerTextDocumentContentProvider(configmaps.uriScheme, configMapProvider);
+
+    const apiSelector: (version: string) => extensionapi.ExtensionAPIVersion = (version) => {
+        switch (version) {
+            case '1.0':
+                return {
+                    status: 'supported',
+                    api: {
+                        clusterProviderRegistry: clusterProviderRegistry
+                    }
+                };
+            default:
+                return { status: 'unknown' };
+        }
+    };
+
     return {
-        apiVersion: '0.1',
-        clusterProviderRegistry: clusterProviderRegistry
+        version: apiSelector
     };
 }
 
