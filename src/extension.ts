@@ -58,6 +58,8 @@ import { DraftConfigurationProvider } from './draft/draftConfigurationProvider';
 import { installHelm, installDraft, installKubectl } from './components/installer/installer';
 import { KubernetesResourceVirtualFileSystemProvider, K8S_RESOURCE_SCHEME } from './kuberesources.virtualfs';
 
+import * as apiadapterv1 from './api/adapters/adapter.v1.0';
+
 let explainActive = false;
 let swaggerSpecPromise = null;
 
@@ -286,7 +288,7 @@ export async function activate(context): Promise<extensionapi.ExtensionAPI> {
                 return {
                     status: 'supported',
                     api: {
-                        clusterProviderRegistry: clusterProviderRegistry
+                        clusterProviderRegistry: apiadapterv1.asAPI(clusterProviderRegistry)
                     }
                 };
             default:
