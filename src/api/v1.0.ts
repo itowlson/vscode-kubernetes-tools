@@ -1,5 +1,5 @@
 export interface v1 {
-    readonly clusterProviderRegistry: ClusterProviderRegistry;  // TODO: wrap this in API layer
+    readonly clusterProviderRegistry: ClusterProviderRegistry;
 }
 
 export type ClusterProviderAction = 'create' | 'configure';
