@@ -59,6 +59,7 @@ import { installHelm, installDraft, installKubectl } from './components/installe
 import { KubernetesResourceVirtualFileSystemProvider, K8S_RESOURCE_SCHEME } from './kuberesources.virtualfs';
 
 import * as apiadapterv1 from './api/adapters/adapter.v1.0';
+import * as apiadapterv2 from './api/adapters/adapter.v2.0';
 
 let explainActive = false;
 let swaggerSpecPromise = null;
@@ -282,23 +283,31 @@ export async function activate(context): Promise<extensionapi.ExtensionAPI> {
     await registerYamlSchemaSupport();
     vscode.workspace.registerTextDocumentContentProvider(configmaps.uriScheme, configMapProvider);
 
-    const apiSelector: (version: string) => extensionapi.ExtensionAPIVersion = (version) => {
-        switch (version) {
-            case '1.0':
-                return {
-                    status: 'supported',
-                    api: {
-                        clusterProviderRegistry: apiadapterv1.asAPI(clusterProviderRegistry)
-                    }
-                };
-            default:
-                return { status: 'unknown' };
-        }
-    };
-
     return {
         version: apiSelector
     };
+}
+
+function apiSelector(version: string): extensionapi.ExtensionAPIVersion {
+    switch (version) {
+        case '1.0':
+            return {
+                status: 'supported',
+                api: {
+                    clusterProviderRegistry: apiadapterv1.asAPI(clusterProviderRegistry)
+                }
+            };
+        case '2.0':
+            return {
+                status: 'supported',
+                api: {
+                    clusterProviderRegistry: apiadapterv2.asAPI(clusterProviderRegistry),
+                    explorerNodeProviderRegistry: undefined  // TODO: define the bally thing until its pips squeak
+                }
+            };
+        default:
+            return { status: 'unknown' };
+    }
 }
 
 // this method is called when your extension is deactivated
