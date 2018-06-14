@@ -1,15 +1,12 @@
 'use strict';
 
-import { create as kubectlCreate, Kubectl } from '../../kubectl';
+import { create as kubectlCreate } from '../../kubectl';
 
 import { fs } from '../../fs';
 import { shell } from '../../shell';
 import { host } from '../../host';
 import { findAllPods, tryFindKindNameFromEditor, FindPodsResult, installDependencies } from '../../extension';
-import { QuickPickOptions } from 'vscode';
 import * as portFinder from 'portfinder';
-import { Pod } from '../../kuberesources.objectmodel';
-import { succeeded } from '../../errorable';
 import * as kubectlUtils from '../../kubectlUtils';
 
 const kubectl = kubectlCreate(host, fs, shell, installDependencies);
@@ -44,6 +41,9 @@ export async function portForwardKubernetes (explorerNode?: any): Promise<void> 
         // The port forward option only appears on pod level workloads in the tree view.
         const podName = explorerNode.id;
         const portMapping = await promptForPort(podName);
+        if (!portMapping) {
+            return;
+        }
         const namespace = await kubectlUtils.currentNamespace(kubectl);
         portForwardToPod(podName, portMapping, namespace);
         return;
@@ -65,6 +65,9 @@ export async function portForwardKubernetes (explorerNode?: any): Promise<void> 
             // The pod is described by the open document. Skip asking which pod to use and go straight to port-forward.
             const podSelection = portForwardablePods.pod;
             const portMapping = await promptForPort(podSelection);
+            if (!portMapping) {
+                return;
+            }
             portForwardToPod(podSelection, portMapping, portForwardablePods.namespace);
             return;
         }
@@ -89,6 +92,9 @@ export async function portForwardKubernetes (explorerNode?: any): Promise<void> 
         }
 
         const portMapping = await promptForPort(podSelection);
+        if (!portMapping) {
+            return;
+        }
         const namespace = await kubectlUtils.currentNamespace(kubectl);
         portForwardToPod(podSelection, portMapping, namespace);
     }
@@ -98,22 +104,22 @@ export async function portForwardKubernetes (explorerNode?: any): Promise<void> 
  * Given a pod name, prompts the user on what port to port-forward to, and validates numeric input.
  * @param podSelection The pod to port-forward to.
  */
-async function promptForPort (podSelection: string): Promise<PortMapping> {
-    let portString: string;
-
+async function promptForPort (podSelection: string): Promise<PortMapping | undefined> {
     try {
-        portString = await host.showInputBox(<QuickPickOptions>{
+        const portString = await host.showInputBox({
             placeHolder: "ex: 8888:5000, for a specific port mapping or 5000 to pick a random local port",
             prompt: `Enter the colon (':') seperated local port to remote port mapping you'd like to port forward.`,
             validateInput: (portMapping: string) => {
                 return validatePortMapping(portMapping);
             }
         });
+        if (portString) {
+            return buildPortMapping(portString);
+        }
     } catch (e) {
         host.showErrorMessage("Could not validate on input port");
     }
-
-    return buildPortMapping(portString);
+    return undefined;
 }
 
 /**
@@ -121,7 +127,7 @@ async function promptForPort (podSelection: string): Promise<PortMapping> {
  * @param portMapping The portMapping string captured from an input field.
  * @returns An error string to be displayed, or undefined.
  */
-function validatePortMapping (portMapping: string): string {
+function validatePortMapping (portMapping: string): string | undefined {
     let localPort, targetPort;
     let splitMapping = portMapping.split(':');
 
@@ -212,16 +218,9 @@ async function findPortForwardablePods (): Promise<PortForwardFindPodsResult> {
 export async function portForwardToPod (podName: string, portMapping: PortMapping, namespace?: string): Promise<number> {
     const localPort = portMapping.localPort;
     const targetPort = portMapping.targetPort;
-    let usedPort = localPort;
+    let usedPort = localPort || await assignedPort();
 
     console.log(`port forwarding to pod ${podName} at port ${targetPort}`);
-
-    if (!localPort) {
-        // the port key/value is the `minimum` port to assign.
-        usedPort = await portFinder.getPortPromise({
-            port: 10000
-        } as portFinder.PortFinderOptions);
-    }
 
     let usedNamespace = namespace === undefined ? 'default' : namespace;
 
@@ -229,4 +228,10 @@ export async function portForwardToPod (podName: string, portMapping: PortMappin
     host.showInformationMessage(`Forwarding from 127.0.0.1:${usedPort} -> ${podName}:${targetPort}`);
 
     return usedPort;
+}
+
+async function assignedPort(): Promise<number> {
+    return await portFinder.getPortPromise({
+        port: 10000
+    } as portFinder.PortFinderOptions);
 }
