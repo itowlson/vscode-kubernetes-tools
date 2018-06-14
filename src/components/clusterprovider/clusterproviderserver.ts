@@ -54,6 +54,10 @@ function handleClusterTypeSelection(request: restify.Request, response: restify.
     reporter.sendTelemetryEvent("cloudselection", { action: action, clusterType: clusterType });
 
     const clusterProvider = clusterproviderregistry.get().list().find((cp) => cp.id === clusterType);  // TODO: move into clusterproviderregistry
+    if (!clusterProvider) {
+        cantHappen('Internal error: cluster provider no longer in list', response);  // "Can't happen" because clusterType was selected from list
+        return;
+    }
     const url = `http://localhost:${clusterProvider.port}/${action}?clusterType=${clusterProvider.id}`;
     response.redirect(307, url, next);
 }
@@ -124,4 +128,9 @@ function handleGetProviderListHtml(action: clusterproviderregistry.ClusterProvid
             </div></body></html>`;
 
     return html;
+}
+
+function cantHappen(message: string, response: restify.Response): void {
+    console.error(message);
+    response.send(message);
 }
