@@ -76,7 +76,7 @@ class KubernetesSchemaHolder {
     }
 
     // get kubernetes schema by the key
-    public lookup(key: string): KubernetesSchema {
+    public lookup(key: string): KubernetesSchema | undefined {
         return key ? this._definitions[key.toLowerCase()] : undefined;
     }
 
@@ -185,7 +185,7 @@ export async function registerYamlSchemaSupport(): Promise<void> {
 }
 
 // see docs from YamlSchemaContributor
-function requestYamlSchemaUriCallback(resource: string): string {
+function requestYamlSchemaUriCallback(resource: string): string | undefined {
     const textEditor = vscode.window.visibleTextEditors.find((editor) => editor.document.uri.toString() === resource);
     if (textEditor) {
         const yamlDocs = yamlLocator.getYamlDocuments(textEditor.document);
@@ -205,10 +205,11 @@ function requestYamlSchemaUriCallback(resource: string): string {
         });
         return util.makeKubernetesUri(choices);
     }
+    return undefined;
 }
 
 // see docs from YamlSchemaContributor
-function requestYamlSchemaContentCallback(uri: string): string {
+function requestYamlSchemaContentCallback(uri: string): string | undefined {
     const _uri = Uri.parse(uri);
     if (_uri.scheme !== KUBERNETES_SCHEMA) {
         return undefined;
@@ -255,7 +256,7 @@ function isGroupVersionKindStyle(originalSchema: any): boolean {
  * @returns {KubernetesSchema[]} an array of schemas for the same manifest differentiated by id/apiVersion/kind;
  */
 function getManifestStyleSchemas(originalSchema: any): KubernetesSchema[] {
-    const schemas = [];
+    const schemas: KubernetesSchema[] = [];
     // eg: service, pod, deployment
     const groupKindNode = originalSchema[KUBERNETES_GROUP_VERSION_KIND];
 
@@ -263,11 +264,15 @@ function getManifestStyleSchemas(originalSchema: any): KubernetesSchema[] {
     delete originalSchema[KUBERNETES_GROUP_VERSION_KIND];
 
     groupKindNode.forEach((groupKindNode) => {
-        const { id, apiVersion, kind } = util.parseKubernetesGroupVersionKind(groupKindNode);
+        const gvkInfo = util.parseKubernetesGroupVersionKind(groupKindNode);
+        if (!gvkInfo) {
+            return;
+        }
 
         // a direct kubernetes manifest has two reference keys: id && name
         // id: apiVersion + kind
         // name: the name in 'definitions' of schema
+        const { id, apiVersion, kind } = gvkInfo;
         schemas.push({
             id,
             apiVersion,
@@ -292,17 +297,17 @@ function getNameInDefinitions ($ref: string): string {
 
 
 // find redhat.vscode-yaml extension and try to activate it to get the yaml contributor
-async function activateYamlExtension(): Promise<{registerContributor: YamlSchemaContributor}> {
-    const ext: vscode.Extension<any> = vscode.extensions.getExtension(VSCODE_YAML_EXTENSION_ID);
+async function activateYamlExtension(): Promise<{registerContributor: YamlSchemaContributor} | undefined> {
+    const ext = vscode.extensions.getExtension(VSCODE_YAML_EXTENSION_ID);
     if (!ext) {
         vscode.window.showWarningMessage('Please install \'YAML Support by Red Hat\' via the Extensions pane.');
-        return;
+        return undefined;
     }
     const yamlPlugin = await ext.activate();
 
     if (!yamlPlugin || !yamlPlugin.registerContributor) {
         vscode.window.showWarningMessage('The installed Red Hat YAML extension doesn\'t support Kubernetes Intellisense. Please upgrade \'YAML Support by Red Hat\' via the Extensions pane.');
-        return;
+        return undefined;
     }
     return yamlPlugin;
 }
