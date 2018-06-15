@@ -20,7 +20,7 @@ class RawDockerfile {
     }
 
     public mergeCommandArgsOfType(command: string): string[] {
-        let args = [];
+        let args: string[] = [];
         this.commandEntries.forEach((entry) => {
             if (entry.name.toLowerCase() === command) {
                 args = args.concat(entry.args);
@@ -52,10 +52,10 @@ class Dockerfile implements IDockerfile {
         this.dockerfile = new RawDockerfile(dockerfilePath);
     }
 
-    getBaseImage(): string {
+    getBaseImage(): string | undefined {
         const fromEntries = this.dockerfile.getCommandsOfType("from");
         if (fromEntries.length === 0) {
-            return;
+            return undefined;
         }
         const baseImageTag = String(fromEntries[0].args);
         const baseImageID = baseImageTag.split(":")[0];
