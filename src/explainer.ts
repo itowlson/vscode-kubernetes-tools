@@ -29,9 +29,12 @@ function readSwaggerCore(kc: kubeconfig.KubeConfig): Promise<any> {
     });
 }
 
-export function readExplanation(swagger: any, fieldsPath: string) {
+export function readExplanation(swagger: any, fieldsPath: string): string | undefined {
     const fields = fieldsPath.split('.');
     const kindName = fields.shift();
+    if (kindName === undefined) {
+        return undefined;
+    }
     const kindDef = findKindModel(swagger, kindName);
     const text = chaseFieldPath(swagger, kindDef, kindName, fields);
     return text;
@@ -132,7 +135,7 @@ function chaseFieldPath(swagger: any, currentProperty: TypeModel, currentPropert
                 if (fields.length === 0) {
                     return formatComplex(currentPropertyName, currentProperty.description, currentPropertyTypeInfo.description, typeRefProperties);
                 } else {
-                    const nextField = fields.shift();
+                    const nextField = <string> fields.shift();  // fields.length > 0
                     const nextProperty = findProperty(typeRefProperties, nextField);
                     if (nextProperty) {
                         return chaseFieldPath(swagger, nextProperty, nextField, fields);
@@ -153,7 +156,7 @@ function chaseFieldPath(swagger: any, currentProperty: TypeModel, currentPropert
             if (fields.length === 0) {
                 return formatComplex(currentPropertyName, currentProperty.description, undefined, properties);
             } else {
-                const nextField = fields.shift();
+                const nextField = <string> fields.shift();  // fields.length > 0
                 const nextProperty = findProperty(properties, nextField);
                 if (nextProperty) {
                     return chaseFieldPath(swagger, nextProperty, nextField, fields);
@@ -187,7 +190,7 @@ function apiCredentials(kc: kubeconfig.KubeConfig) {
 
 function singularizeVersionedName(name: string) {
     const bits = name.split('.');
-    let lastBit = bits.pop();
+    let lastBit = <string> bits.pop();
     lastBit = pluralize.singular(lastBit);
     bits.push(lastBit);
     return bits.join('.');
@@ -234,6 +237,6 @@ function findTypeDefinition(swagger: any, typeDefnPath: string[]): TypeModel | u
 
 // TODO: this isn't really a type model - it can be a type model (description + properties) *or* a property model (description + [type|$ref])
 interface TypeModel extends Typed {
-    readonly description?: string;
+    readonly description: string;
     readonly properties?: any;
 }
