@@ -192,7 +192,7 @@ class KubernetesWorkloadFolder extends KubernetesFolder {
         return [
             new KubernetesDeploymentFolder(),
             new KubernetesResourceFolder(kuberesources.allKinds.job),
-            new KubernetesResourceFolder(kuberesources.allKinds.cronjob),
+            new KubernetesCronJobsFolder(),
             new KubernetesResourceFolder(kuberesources.allKinds.pod)
         ];
     }
@@ -260,6 +260,10 @@ class KubernetesResource implements KubernetesObject, ResourceNode {
         return (this.metadata && this.metadata.namespace) ? this.metadata.namespace : null;
     }
 
+    get childable(): boolean {
+        return false;
+    }
+
     uri(outputFormat: string): vscode.Uri {
         return kubefsUri(this.namespace, this.resourceId, outputFormat);
     }
@@ -269,7 +273,7 @@ class KubernetesResource implements KubernetesObject, ResourceNode {
     }
 
     getTreeItem(): vscode.TreeItem | Thenable<vscode.TreeItem> {
-        const treeItem = new vscode.TreeItem(this.id, vscode.TreeItemCollapsibleState.None);
+        const treeItem = new vscode.TreeItem(this.id, this.childable ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None);
         treeItem.command = {
             command: "extension.vsKubernetesLoad",
             title: "Load",
@@ -367,6 +371,44 @@ class KubernetesDeploymentFolder extends KubernetesResourceFolder {
     async getChildren(kubectl: Kubectl, host: Host): Promise<KubernetesObject[]> {
         const deployments = await kubectlUtils.getDeployments(kubectl);
         return deployments.map((dp) => new KubernetesSelectorResource(this.kind, dp.name, dp, dp.selector));
+    }
+}
+
+class KubernetesCronJobsFolder extends KubernetesResourceFolder {
+    constructor() {
+        super(kuberesources.allKinds.cronjob);
+    }
+
+    async getChildren(kubectl: Kubectl, host: Host): Promise<KubernetesObject[]> {
+        const cronjobs = await super.getChildren(kubectl, host);
+        return cronjobs.map((c) => new KubernetesChildableResource(this.kind, kuberesources.allKinds.job, c.id, c.metadata));
+    }
+}
+
+class KubernetesChildableResource extends KubernetesResource {
+    constructor(kind: kuberesources.ResourceKind, readonly childKind: kuberesources.ResourceKind, id: string, metadata?: any) {
+        super(kind, id, metadata);
+    }
+
+    get childable(): boolean {
+        return true;
+    }
+
+    getChildren(kubectl: Kubectl, host: Host): vscode.ProviderResult<KubernetesObject[]> {
+        return this.getChildrenImpl(kubectl, host);
+    }
+
+    async getChildrenImpl(kubectl: Kubectl, host: Host): Promise<KubernetesObject[]> {
+        // TODO: filtering - can't get this working for cronjobs -> jobs yet though
+        const childrenLines = await kubectl.asLines(`get ${this.childKind.abbreviation}`);
+        if (failed(childrenLines)) {
+            host.showErrorMessage(childrenLines.error[0]);
+            return [new DummyObject("Error")];
+        }
+        return childrenLines.result.map((line) => {
+            const bits = line.split(' ');
+            return new KubernetesResource(this.kind, bits[0]);
+        });
     }
 }
 
