@@ -98,11 +98,7 @@ export class KubernetesExplorer implements vscode.TreeDataProvider<KubernetesObj
     }
 }
 
-/**
- * Dummy object will be displayed as a placeholder in the tree explorer. Cannot be expanded and has no action menus on it.
- * For example, display an "Error" dummy node when failing to get children of expandable parent.
- */
-class DummyObject implements KubernetesObject {
+class ErrorNode implements KubernetesObject {
     constructor(readonly id: string, readonly diagnostic?: string) {
     }
 
@@ -238,8 +234,8 @@ class KubernetesResourceFolder extends KubernetesFolder {
         }
         const childrenLines = await kubectl.asLines(`get ${this.kind.abbreviation}`);
         if (failed(childrenLines)) {
-            host.showErrorMessage(childrenLines.error[0]);
-            return [new DummyObject("Error")];
+            const error = childrenLines.error[0];
+            return [new ErrorNode("Error", error)];
         }
         return childrenLines.result.map((line) => {
             const bits = line.split(' ');
@@ -478,7 +474,7 @@ class HelmReleasesFolder extends KubernetesFolder {
 
     async getChildren(kubectl: Kubectl, host: Host): Promise<KubernetesObject[]> {
         if (!helmexec.ensureHelm(helmexec.EnsureMode.Silent)) {
-            return [new DummyObject("Helm client is not installed")];
+            return [new ErrorNode("Helm client is not installed")];
         }
 
         const currentNS = await kubectlUtils.currentNamespace(kubectl);
@@ -486,7 +482,7 @@ class HelmReleasesFolder extends KubernetesFolder {
         const releases = await helmexec.helmListAll(currentNS);
 
         if (failed(releases)) {
-            return [new DummyObject("Helm list error", releases.error[0])];
+            return [new ErrorNode("Helm list error", releases.error[0])];
         }
 
         return releases.result.map((r) => new HelmReleaseResource(r.name, r.status));
