@@ -13,7 +13,6 @@ import { fs } from './fs';
 import * as yaml from 'js-yaml';
 import * as dockerfileParse from 'dockerfile-parse';
 import * as tmp from 'tmp';
-import * as uuid from 'uuid';
 import * as clipboard from 'clipboardy';
 import { pullAll } from 'lodash';
 
@@ -65,7 +64,7 @@ import { KubernetesCompletionProvider } from "./yaml-support/yaml-snippet";
 import { showWorkspaceFolderPick } from './hostutils';
 import { DraftConfigurationProvider } from './draft/draftConfigurationProvider';
 import { installHelm, installDraft, installKubectl, installMinikube } from './components/installer/installer';
-import { KubernetesResourceVirtualFileSystemProvider, K8S_RESOURCE_SCHEME, KUBECTL_RESOURCE_AUTHORITY, kubefsUri } from './kuberesources.virtualfs';
+import { KubernetesResourceVirtualFileSystemProvider, K8S_RESOURCE_SCHEME, kubefsUri } from './kuberesources.virtualfs';
 import { KubernetesResourceLinkProvider } from './kuberesources.linkprovider';
 import { Container, isKubernetesResource, KubernetesCollection, Pod, KubernetesResource } from './kuberesources.objectmodel';
 import { setActiveKubeconfig, getKnownKubeconfigs, addKnownKubeconfig } from './components/config/config';
@@ -1860,7 +1859,6 @@ enum DraftCreateResult {
 }
 
 async function execDraftCreateApp(appName: string, pack?: string): Promise<void> {
-    const packOpt = pack ? ` -p ${pack}` : '';
     const dcResult = await draft.create(appName, pack, vscode.workspace.rootPath);
 
     switch (draftCreateResult(dcResult, !!pack)) {

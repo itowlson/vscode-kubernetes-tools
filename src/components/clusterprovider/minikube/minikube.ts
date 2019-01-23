@@ -1,7 +1,5 @@
 'use strict';
 
-import * as os from 'os';
-
 import * as vscode from 'vscode';
 import { Shell, ShellResult } from '../../../shell';
 import { Host } from '../../../host';
@@ -12,20 +10,20 @@ import { fromShellExitCodeOnly, Diagnostic } from '../../../wizard';
 import { getToolPath } from '../../config/config';
 import { installMinikube } from '../../installer/installer';
 
-export class MinikubeInfo {
+export interface MinikubeInfo {
     readonly running: boolean;
     readonly cluster: string;
     readonly kubectl: string;
 }
 
-export class MinikubeOptions {
+export interface MinikubeOptions {
     readonly vmDriver: string;
     readonly additionalFlags: string;
 }
 
 export interface Minikube {
     checkPresent(mode: CheckPresentMode): Promise<boolean>;
-    checkUpgradeAvailable();
+    checkUpgradeAvailable(): Promise<void>;
     isRunnable(): Promise<Errorable<Diagnostic>>;
     start(options: MinikubeOptions): Promise<void>;
     stop(): Promise<void>;
@@ -85,7 +83,7 @@ class MinikubeImpl implements Minikube {
     }
 }
 
-async function minikubeUpgradeAvailable(context: Context) {
+async function minikubeUpgradeAvailable(context: Context): Promise<void> {
     if (!await checkPresent(context, CheckPresentMode.Alert)) {
         // not installed, no upgrade.
         return;
@@ -106,7 +104,7 @@ async function minikubeUpgradeAvailable(context: Context) {
     const currentVersion = extractVersion(lines[0]);
     const availableVersion = extractVersion(lines[1]);
     if (currentVersion !== availableVersion) {
-        vscode.window.showInformationMessage(`Minikube upgrade available to ${availableVersion}, currently on ${currentVersion}`, 'Install').then(async (value: string) => {
+        vscode.window.showInformationMessage(`Minikube upgrade available to ${availableVersion}, currently on ${currentVersion}`, 'Install').then(async (value) => {
             if (value === 'Install') {
                 const result = await installMinikube(context.shell, availableVersion);
                 if (failed(result)) {
@@ -131,7 +129,7 @@ async function isRunnableMinikube(context: Context): Promise<Errorable<Diagnosti
     return fromShellExitCodeOnly(sr);
 }
 
-let minikubeStatusBarItem;
+let minikubeStatusBarItem: vscode.StatusBarItem | undefined;
 
 function getStatusBar(): vscode.StatusBarItem {
     if (!minikubeStatusBarItem) {

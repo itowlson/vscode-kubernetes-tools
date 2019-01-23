@@ -11,14 +11,16 @@ import { installDependencies } from '../extension';
 
 export class DraftRuntime extends EventEmitter {
 	private draft = draftCreate(host, fs, shell, installDependencies);
-	private connectProcess: ChildProcess;
+	private connectProcess: ChildProcess | undefined;
 
 	constructor() {
 		super();
 	}
 
 	public killConnect() {
-		this.connectProcess.kill('SIGTERM');
+        if (this.connectProcess) {
+            this.connectProcess.kill('SIGTERM');
+        }
 	}
 
 	public async draftUpDebug(config: vscode.DebugConfiguration) {
@@ -30,7 +32,12 @@ export class DraftRuntime extends EventEmitter {
 		if (!isPresent) {
 			host.showInformationMessage("Draft is not installed!");
 			return;
-		}
+        }
+
+        if (!vscode.workspace.rootPath) {
+			host.showErrorMessage("This command requires an open folder.");
+			return;
+        }
 
 		if (!this.draft.isFolderMapped(vscode.workspace.rootPath)) {
 			host.showErrorMessage("This folder does not contain a Draft app. Run draft create first!");
@@ -124,7 +131,9 @@ function canAttachDebugger(data: string, config: vscode.DebugConfiguration): boo
 			}
 			break;
 		}
-	}
+    }
+
+    return false;
 }
 
 function subscribeToDataEvent(readable: Readable, outputChannel: OutputChannel): void {

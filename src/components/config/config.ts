@@ -54,6 +54,9 @@ type ConfigUpdater<T> = (configKey: string, value: T, scope: vscode.Configuratio
 
 async function atAllConfigScopes<T>(fn: ConfigUpdater<T>, configKey: string, value: T): Promise<void> {
     const config = vscode.workspace.getConfiguration().inspect(EXTENSION_CONFIG_KEY);
+    if (!config) {
+        return;
+    }
     await fn(configKey, value, vscode.ConfigurationTarget.Global, config.globalValue, true);
     await fn(configKey, value, vscode.ConfigurationTarget.Workspace, config.workspaceValue, false);
     await fn(configKey, value, vscode.ConfigurationTarget.WorkspaceFolder, config.workspaceFolderValue, false);

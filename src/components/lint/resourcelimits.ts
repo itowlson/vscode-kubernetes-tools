@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 
 import { LinterImpl, Syntax } from './linter.impl';
 import { warningOn, childSymbols } from './linter.utils';
+import { flatten } from '../../utils/array';
 
 // Pod->spec (which can also be found as Deployment->spec.template.spec)
 // .containers[each].resources.limits.{cpu,memory}
@@ -20,7 +21,7 @@ export class ResourceLimitsLinter implements LinterImpl {
         const symbols = await syntax.symbolise(document);
 
         const diagnostics = resources.map((r) => this.lintOne(r, symbols));
-        return [].concat(...diagnostics);
+        return flatten(...diagnostics);
     }
 
     private lintOne(resource: any, symbols: vscode.SymbolInformation[]): vscode.Diagnostic[] {

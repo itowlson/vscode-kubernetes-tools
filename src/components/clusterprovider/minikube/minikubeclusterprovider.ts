@@ -2,12 +2,11 @@ import * as clusterproviderregistry from '../clusterproviderregistry';
 import { styles, formStyles, waitScript, ActionResult, Diagnostic, fromShellExitCodeOnly } from '../../../wizard';
 import { propagationFields, formPage } from '../common/form';
 import { refreshExplorer } from '../common/explorer';
-import { succeeded, Failed, failed } from '../../../errorable';
+import { succeeded, Failed } from '../../../errorable';
 import { Shell } from '../../../shell';
 import { Minikube, MinikubeOptions } from './minikube';
 import { Wizard, NEXT_FN } from '../../wizard/wizard';
-import { Sequence, Observable, Observer } from '../../../utils/observable';
-import { sleep } from '../../../sleep';
+import { Sequence, Observable } from '../../../utils/observable';
 import { trackReadiness } from '../readinesstracker';
 
 export interface Context {

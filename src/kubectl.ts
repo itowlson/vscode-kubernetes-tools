@@ -17,7 +17,7 @@ export interface Kubectl {
     invokeWithProgress(command: string, progressMessage: string, handler?: ShellHandler): Promise<void>;
     invokeAsync(command: string, stdin?: string): Promise<ShellResult>;
     invokeAsyncWithProgress(command: string, progressMessage: string): Promise<ShellResult>;
-    spawnAsChild(command: string[]): Promise<ChildProcess>;
+    spawnAsChild(command: string[]): Promise<ChildProcess | undefined>;
     /**
      * Invoke a kubectl command in Terminal.
      * @param command the subcommand to run.
@@ -46,7 +46,7 @@ class KubectlImpl implements Kubectl {
     }
 
     private readonly context: Context;
-    private sharedTerminal: Terminal;
+    private sharedTerminal: Terminal | null = null;
 
     checkPresent(errorMessageMode: CheckPresentMessageMode): Promise<boolean> {
         return checkPresent(this.context, errorMessageMode);
@@ -63,12 +63,12 @@ class KubectlImpl implements Kubectl {
     invokeAsyncWithProgress(command: string, progressMessage: string): Promise<ShellResult> {
         return invokeAsyncWithProgress(this.context, command, progressMessage);
     }
-    spawnAsChild(command: string[]): Promise<ChildProcess> {
+    spawnAsChild(command: string[]): Promise<ChildProcess | undefined> {
         return spawnAsChild(this.context, command);
     }
     async invokeInNewTerminal(command: string, terminalName: string, onClose?: (e: Terminal) => any, pipeTo?: string): Promise<Disposable> {
         const terminal = this.context.host.createTerminal(terminalName);
-        const disposable = onClose ? this.context.host.onDidCloseTerminal(onClose) : null;
+        const disposable = onClose ? this.context.host.onDidCloseTerminal(onClose) : new Disposable(() => {});
         await invokeInTerminal(this.context, command, pipeTo, terminal);
         return disposable;
     }
@@ -190,10 +190,11 @@ async function invokeAsyncWithProgress(context: Context, command: string, progre
     });
 }
 
-async function spawnAsChild(context: Context, command: string[]): Promise<ChildProcess> {
+async function spawnAsChild(context: Context, command: string[]): Promise<ChildProcess | undefined> {
     if (await checkPresent(context, CheckPresentMessageMode.Command)) {
         return spawnChildProcess(path(context), command, context.shell.execOpts());
     }
+    return undefined;
 }
 
 async function invokeInTerminal(context: Context, command: string, pipeTo: string | undefined, terminal: Terminal): Promise<void> {
@@ -227,7 +228,7 @@ async function kubectlInternal(context: Context, command: string, handler: Shell
     if (await checkPresent(context, CheckPresentMessageMode.Command)) {
         const bin = baseKubectlPath(context);
         const cmd = `${bin} ${command}`;
-        context.shell.exec(cmd, null).then(({code, stdout, stderr}) => handler(code, stdout, stderr));
+        context.shell.exec(cmd, undefined).then(({code, stdout, stderr}) => handler(code, stdout, stderr));
     }
 }
 
