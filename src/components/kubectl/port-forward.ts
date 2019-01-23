@@ -8,7 +8,7 @@ import { QuickPickOptions } from 'vscode';
 import * as portFinder from 'portfinder';
 import { succeeded } from '../../errorable';
 import * as kubectlUtils from '../../kubectlUtils';
-import { KubernetesExplorer, ResourceNode } from '../../explorer';
+import { ResourceNode } from '../../explorer';
 
 const PORT_FORWARD_TERMINAL = 'kubectl port-forward';
 const MAX_PORT_COUNT = 65535;
@@ -118,19 +118,23 @@ async function promptForPort (): Promise<PortMapping[]> {
                 return undefined;
             }
         });
+
+        if (portString) {
+            return buildPortMapping(portString);
+        }
     } catch (e) {
         host.showErrorMessage("Could not validate on input port");
     }
 
-    return buildPortMapping(portString);
+    return [];
 }
 
 /**
  * Validates the user supplied port mapping(s)
  * @param portMapping The portMapping string captured from an input field
- * @returns A ValidationResult object describing the first error found.
+ * @returns A ValidationResult object describing the first error found, or undefined if no errors.
  */
-function validatePortMapping (portMapping: string): ValidationResult {
+function validatePortMapping (portMapping: string): ValidationResult | undefined {
     const portPairs = portMapping.split(' ');
     const validationResults: ValidationResult[] = portPairs.map(validatePortPair);
 

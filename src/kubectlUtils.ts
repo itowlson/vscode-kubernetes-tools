@@ -54,8 +54,8 @@ export async function getCurrentClusterConfig(kubectl: Kubectl): Promise<Cluster
     if (!kubeConfig) {
         return undefined;
     }
-    const contextConfig = kubeConfig.contexts.find((context) => context.name === kubeConfig["current-context"]);
-    const clusterConfig = kubeConfig.clusters.find((cluster) => cluster.name === contextConfig.context.cluster);
+    const contextConfig = kubeConfig.contexts.find((context: any) => context.name === kubeConfig["current-context"]);
+    const clusterConfig = kubeConfig.clusters.find((cluster: any) => cluster.name === contextConfig.context.cluster);
     return {
         server: clusterConfig.cluster.server,
         certificateAuthority: clusterConfig.cluster["certificate-authority"]
@@ -69,7 +69,7 @@ export async function getContexts(kubectl: Kubectl): Promise<KubectlContext[]> {
     }
     const currentContext = kubectlConfig["current-context"];
     const contexts = kubectlConfig.contexts;
-    return contexts.map((c) => {
+    return contexts.map((c: any) => {
         return {
             clusterName: c.context.cluster,
             contextName: c.name,
@@ -177,13 +177,13 @@ export async function getResourceWithSelector(resource: string, kubectl: Kubectl
     });
 }
 
-export async function getPods(kubectl: Kubectl, selector: any, namespace: string = null): Promise<PodInfo[]> {
+export async function getPods(kubectl: Kubectl, selector: any, namespace: string | null = null): Promise<PodInfo[]> {
     const ns = namespace || await currentNamespace(kubectl);
     let nsFlag = `--namespace=${ns}`;
     if (ns === 'all') {
         nsFlag = '--all-namespaces';
     }
-    const labels = [];
+    const labels = Array.of<string>();
     let matchLabelObj = selector;
     if (selector && selector.matchLabels) {
         matchLabelObj = selector.matchLabels;
@@ -220,7 +220,7 @@ export async function currentNamespace(kubectl: Kubectl): Promise<string> {
         return "";
     }
     const ctxName = kubectlConfig["current-context"];
-    const currentContext = kubectlConfig.contexts.find((ctx) => ctx.name === ctxName);
+    const currentContext = kubectlConfig.contexts.find((ctx: any) => ctx.name === ctxName);
     if (!currentContext) {
         return "";
     }

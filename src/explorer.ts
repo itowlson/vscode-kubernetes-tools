@@ -9,8 +9,9 @@ import * as kuberesources from './kuberesources';
 import { failed } from './errorable';
 import * as helmexec from './helm.exec';
 import { Pod, CRD } from './kuberesources.objectmodel';
-import { K8S_RESOURCE_SCHEME, KUBECTL_RESOURCE_AUTHORITY, kubefsUri } from './kuberesources.virtualfs';
+import { kubefsUri } from './kuberesources.virtualfs';
 import { affectsUs } from './components/config/config';
+import { orEmpty } from './utils/object';
 
 const KUBERNETES_CLUSTER = "vsKubernetes.cluster";
 const MINIKUBE_CLUSTER = "vsKubernetes.minikubeCluster";
@@ -155,12 +156,14 @@ class KubernetesContextNode implements KubernetesObject {
         treeItem.contextValue = this.clusterType;
         treeItem.iconPath = this.icon;
 
-        if (!this.metadata.active) {
+        const metadata = orEmpty(this.metadata);
+
+        if (!metadata.active) {
             treeItem.collapsibleState = vscode.TreeItemCollapsibleState.None;
             treeItem.contextValue += ".inactive";
         }
 
-        treeItem.tooltip = `${this.metadata.contextName}\nCluster: ${this.metadata.clusterName}`;
+        treeItem.tooltip = `${metadata.contextName}\nCluster: ${metadata.clusterName}`;
         return treeItem;
     }
 }
@@ -253,7 +256,7 @@ class KubernetesResourceFolder extends KubernetesFolder {
 
     async getChildren(kubectl: Kubectl, host: Host): Promise<KubernetesObject[]> {
         if (this.kind === kuberesources.allKinds.pod) {
-            const pods = await kubectlUtils.getPods(kubectl, null, null);
+            const pods = await kubectlUtils.getPods(kubectl, null, undefined);
             return pods.map((pod) => {
                 return new KubernetesResource(this.kind, pod.name, pod);
             });
