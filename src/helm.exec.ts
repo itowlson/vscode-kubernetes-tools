@@ -595,6 +595,9 @@ export function insertRequirement() {
         prompt: "Chart",
         placeHolder: "stable/redis",
     }).then((val) => {
+        if (!val) {
+            return;
+        }
         const req = searchForChart(val);
         if (!req) {
             vscode.window.showErrorMessage(`Chart ${ val } not found`);
@@ -610,7 +613,7 @@ export function insertRequirement() {
 }
 
 // searchForChart takes a 'repo/name' and returns an entry suitable for requirements
-export function searchForChart(name: string, version?: string): Requirement {
+export function searchForChart(name: string, version?: string): Requirement | undefined {
     const parts = name.split("/", 2);
     if (parts.length !== 2) {
         logger.log("Chart should be of the form REPO/CHARTNAME");
@@ -624,7 +627,7 @@ export function searchForChart(name: string, version?: string): Requirement {
     }
     const repos = YAML.load(reposFile);
     let req;
-    repos.repositories.forEach((repo) => {
+    repos.repositories.forEach((repo: any) => {
         if (repo.name === parts[0]) {
             const cache = YAML.load(repo.cache);
             _.each(cache.entries, (releases, name) => {

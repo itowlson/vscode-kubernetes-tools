@@ -55,7 +55,7 @@ export class HelmRepoExplorer implements vscode.TreeDataProvider<HelmObject> {
     private onDidChangeTreeDataEmitter: vscode.EventEmitter<HelmObject | undefined> = new vscode.EventEmitter<HelmObject | undefined>();
     readonly onDidChangeTreeData: vscode.Event<HelmObject | undefined> = this.onDidChangeTreeDataEmitter.event;
 
-    constructor(private readonly host: Host) {
+    constructor(host: Host) {
         host.onDidChangeConfiguration((change) => {
             if (affectsUs(change)) {
                 this.refresh();
@@ -133,7 +133,7 @@ class HelmRepoChartImpl implements HelmRepoChart {
     private readonly versions: HelmRepoChartVersionImpl[];
     private readonly name: string;
 
-    constructor(private readonly repoName, readonly id: string, private readonly content: { [key: string]: string }[]) {
+    constructor(repoName: string, readonly id: string, content: { [key: string]: string }[]) {
         this.versions = content.map((e) => new HelmRepoChartVersionImpl(
             id,
             e['chart version'],

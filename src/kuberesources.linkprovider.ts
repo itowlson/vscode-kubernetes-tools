@@ -12,8 +12,7 @@ export class KubernetesResourceLinkProvider implements vscode.DocumentLinkProvid
         const sourceKind = k8sKind(document);
         const yaml = yl.yamlLocator.getYamlDocuments(document);
         const leaves: yl.YamlNode[] = getLeafNodes(yaml);
-        const links = leaves.map((l) => getLink(document, sourceKind, l))
-                            .filter((l) => !!l);
+        const links = leaves.choose((l) => getLink(document, sourceKind, l));
         return links;
     }
 }
@@ -79,7 +78,7 @@ function parentKey(node: yl.YamlNode): string | undefined {
         return undefined;
     }
     if (parent.parent && yl.isMapping(parent.parent)) {
-        const parentPair = parent.parent.mappings.find((mi) => mi.value === parent);
+        const parentPair = parent.parent.mappings.find((mi) => mi.value === parent)!;
         const parentKey = key(parentPair);
         if (parentKey) {
             return parentKey;
@@ -119,9 +118,12 @@ function getLinkUri(sourceKind: string, node: yl.YamlMappingItem): vscode.Uri | 
         return kubefsUri(null, `ns/${node.value.raw}`, 'yaml');
     }
     if (key(node) === 'name' && parentKey(node) === 'ownerReferences') {
-        const ownerKind = k8sKindFromManifestKind(sibling(node, 'kind'));
-        if (ownerKind) {
-            return kubefsUri(null, `${ownerKind}/${node.value.raw}`, 'yaml');
+        const manifestKind = sibling(node, 'kind');
+        if (manifestKind) {
+            const ownerKind = k8sKindFromManifestKind(manifestKind);
+            if (ownerKind) {
+                return kubefsUri(null, `${ownerKind}/${node.value.raw}`, 'yaml');
+            }
         }
     }
 
@@ -154,10 +156,12 @@ function getLinkUriFromPV(node: yl.YamlMappingItem): vscode.Uri | undefined {
     if (key(node) === 'storageClassName') {
         return kubefsUri(null, `sc/${node.value.raw}`, 'yaml');
     } else if (key(node) === 'name' && parentKey(node) === 'claimRef') {
-        return kubefsUri(sibling(node, 'namespace'), `pvc/${node.value.raw}`, 'yaml');
-    } else {
-        return undefined;
+        const ns = sibling(node, 'namespace');
+        if (ns) {
+            return kubefsUri(ns, `pvc/${node.value.raw}`, 'yaml');
+        }
     }
+    return undefined;
 }
 
 function getLinkUriFromPVC(node: yl.YamlMappingItem): vscode.Uri | undefined {
