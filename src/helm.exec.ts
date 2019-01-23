@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as filepath from 'path';
-import { ChildProcess, spawn } from 'child_process';
+import { spawn } from 'child_process';
 import { helm as logger } from './logger';
 import * as YAML from 'yamljs';
 import * as _ from 'lodash';
@@ -17,7 +17,7 @@ import { parseLineOutput } from './outputUtils';
 import { sleep } from './sleep';
 import { currentNamespace } from './kubectlUtils';
 import { Kubectl } from './kubectl';
-import { getToolPath, getUseWsl } from './components/config/config';
+import { getToolPath } from './components/config/config';
 import { host } from './host';
 import * as fs from './wsl-fs';
 import { preview } from './utils/preview';
@@ -259,8 +259,9 @@ export async function helmFetch(helmObject: helmrepoexplorer.HelmObject | undefi
     if (!helmObject) {
         const id = await vscode.window.showInputBox({ prompt: "Chart to fetch", placeHolder: "stable/mychart" });
         if (id) {
-            helmFetchCore(id, undefined);
+            await helmFetchCore(id, undefined);
         }
+        return;
     }
     if (helmrepoexplorer.isHelmRepoChart(helmObject)) {
         await helmFetchCore(helmObject.id, undefined);
@@ -288,8 +289,9 @@ export async function helmInstall(kubectl: Kubectl, helmObject: helmrepoexplorer
     if (!helmObject) {
         const id = await vscode.window.showInputBox({ prompt: "Chart to install", placeHolder: "stable/mychart" });
         if (id) {
-            helmInstallCore(kubectl, id, undefined);
+            await helmInstallCore(kubectl, id, undefined);
         }
+        return;
     }
     if (helmrepoexplorer.isHelmRepoChart(helmObject)) {
         await helmInstallCore(kubectl, helmObject.id, undefined);
@@ -324,19 +326,13 @@ function extractReleaseName(helmOutput: string): string {
     return nameLine.substring(HELM_INSTALL_NAME_HEADER.length + 1).trim();
 }
 
-interface Dependency {
-    readonly name: string;
-    readonly version: string;
-    readonly repository: string;
-    readonly status: string;
-}
-
 export async function helmDependencies(helmObject: helmrepoexplorer.HelmObject | undefined): Promise<void> {
     if (!helmObject) {
         const id = await vscode.window.showInputBox({ prompt: "Chart to show dependencies for", placeHolder: "stable/mychart" });
         if (id) {
-            helmDependenciesLaunchViewer(id, undefined);
+            await helmDependenciesLaunchViewer(id, undefined);
         }
+        return;
     }
     if (helmrepoexplorer.isHelmRepoChart(helmObject)) {
         await helmDependenciesLaunchViewer(helmObject.id, undefined);
@@ -401,7 +397,7 @@ export function pickChart(fn: (chartPath: string) => void) {
                 fn(p);
                 return;
             default:
-                const paths = [];
+                const paths = Array.of<string>();
                 // TODO: This would be so much cooler if the QuickPick parsed the Chart.yaml
                 // and showed the chart name instead of the path.
                 matches.forEach((item) => {
@@ -417,26 +413,25 @@ export function pickChart(fn: (chartPath: string) => void) {
     });
 }
 
-class Chart {
-    public name: string;
-    public version: string;
-    public appVersion: string;
+interface Chart {
+    readonly name: string;
+    readonly version: string;
+    readonly appVersion: string;
 }
 
 // Load a chart object
-export function loadChartMetadata(chartDir: string): Chart {
+export function loadChartMetadata(chartDir: string): Chart | undefined {
     const f = filepath.join(chartDir, "Chart.yaml");
-    let c;
     try {
-        c = YAML.load(f);
+        return YAML.load(f) as Chart;
     } catch (err) {
         vscode.window.showErrorMessage("Chart.yaml: " + err);
     }
-    return c;
+    return undefined;
 }
 
 // Given a file, show any charts that this file belongs to.
-export function pickChartForFile(file: string, options: PickChartUIOptions, fn) {
+export function pickChartForFile(file: string, options: PickChartUIOptions, fn: (p: string) => void): void {
     vscode.workspace.findFiles("**/Chart.yaml", "", 1024).then((matches) => {
         switch (matches.length) {
             case 0:
@@ -450,7 +445,7 @@ export function pickChartForFile(file: string, options: PickChartUIOptions, fn) 
                 fn(p);
                 return;
             default:
-                const paths = [];
+                const paths = Array.of<string>();
 
                 matches.forEach((item) => {
                     const dirname = filepath.dirname(item.fsPath);
@@ -526,8 +521,8 @@ export async function helmListAll(namespace?: string): Promise<Errorable<{ [key:
 
     do {
         const nsarg = namespace ? `--namespace ${namespace}` : "";
-        const offsetarg = offset ? `--offset ${offset}` : "";
-        const sr = await helmExecAsync(`list --max 0 ${nsarg} ${offsetarg}`);
+        const offsetarg: string = offset ? `--offset ${offset}` : "";  // TODO: figure out why these things need type annotations
+        const sr: ShellResult = await helmExecAsync(`list --max 0 ${nsarg} ${offsetarg}`);
 
         if (sr.code !== 0) {
             return { succeeded: false, error: [ sr.stderr ] };
@@ -538,7 +533,7 @@ export async function helmListAll(namespace?: string): Promise<Errorable<{ [key:
                                .filter((l) => l.length > 0);
         if (lines.length > 0) {
             if (lines[0].startsWith(HELM_PAGING_PREFIX)) {
-                const pagingInfo = lines.shift();
+                const pagingInfo = lines.shift()!;  // ensured by the lines.length > 0 check
                 offset = pagingInfo.substring(HELM_PAGING_PREFIX.length).trim();
             } else {
                 offset = null;

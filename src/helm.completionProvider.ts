@@ -45,10 +45,14 @@ export class HelmTemplateCompletionProvider implements vscode.CompletionItemProv
         });
     }
 
-    public provideCompletionItems(doc: vscode.TextDocument, pos: vscode.Position) {
+    public provideCompletionItems(doc: vscode.TextDocument, pos: vscode.Position): vscode.CompletionList | vscode.CompletionItem[] {
         // If the preceding character is a '.', we kick it into dot resolution mode.
         // Otherwise, we go with function completion.
         const wordPos = doc.getWordRangeAtPosition(pos);
+        if (!wordPos) {
+            return [];
+        }
+
         const word = doc.getText(wordPos);
         const line = doc.lineAt(pos.line).text;
         const lineUntil = line.substr(0, wordPos.start.character);
