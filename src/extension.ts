@@ -74,7 +74,7 @@ import { linters } from './components/lint/linters';
 import { runClusterWizard } from './components/clusterprovider/clusterproviderserver';
 
 let explainActive = false;
-let swaggerSpecPromise = null;
+let swaggerSpecPromise: Promise<any> | null = null;
 
 const kubernetesDiagnostics = vscode.languages.createDiagnosticCollection("Kubernetes");
 
@@ -307,7 +307,7 @@ export async function activate(context): Promise<extensionapi.ExtensionAPI> {
     });
 
     // On editor change, refresh the Helm YAML preview
-    vscode.window.onDidChangeActiveTextEditor((e: vscode.TextEditor) => {
+    vscode.window.onDidChangeActiveTextEditor((e: vscode.TextEditor | undefined) => {
         if (!editorIsActive()) {
             return;
         }
@@ -319,7 +319,7 @@ export async function activate(context): Promise<extensionapi.ExtensionAPI> {
         previewProvider.update(u);
     });
 
-    vscode.debug.onDidChangeActiveDebugSession((e: vscode.DebugSession)=> {
+    vscode.debug.onDidChangeActiveDebugSession((e: vscode.DebugSession | undefined)=> {
         if (e !== undefined) {
             // keep a copy of the initial Draft debug session
             if (e.name.indexOf('Draft') >= 0) {
@@ -358,8 +358,8 @@ function registerTelemetry(context: vscode.ExtensionContext): vscode.Disposable 
     return new Reporter(context);
 }
 
-function provideHover(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken, syntax): Promise<vscode.Hover> {
-    return new Promise(async (resolve, reject) => {
+function provideHover(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken, syntax: Syntax): Promise<vscode.Hover | undefined | null> {
+    return new Promise<vscode.Hover | undefined | null>(async (resolve, reject) => {
         if (!explainActive) {
             resolve(null);
             return;
@@ -398,15 +398,20 @@ function provideHover(document: vscode.TextDocument, position: vscode.Position, 
         }
 
         explain(obj, field).then(
-            (msg: string) => resolve(new vscode.Hover(msg)),
+            (msg: string | null) => msg ? resolve(new vscode.Hover(msg)) : resolve(null),
             (err: any) => reject(err)
         );
     });
 
 }
 
-function provideHoverJson(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<vscode.Hover> {
-    const syntax = {
+interface Syntax {
+    parse(text: string): any;
+    findParent(document: vscode.TextDocument, parentLine: number): number;
+}
+
+function provideHoverJson(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<vscode.Hover | undefined | null> {
+    const syntax: Syntax = {
         parse: (text) => JSON.parse(text),
         findParent: (document, parentLine) => findParentJson(document, parentLine - 1)
     };
@@ -414,20 +419,20 @@ function provideHoverJson(document: vscode.TextDocument, position: vscode.Positi
     return provideHover(document, position, token, syntax);
 }
 
-function provideHoverYaml(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<vscode.Hover> {
-    const syntax = {
+function provideHoverYaml(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<vscode.Hover | undefined | null> {
+    const syntax: Syntax = {
         parse: (text) => yaml.safeLoad(text),
         findParent: (document, parentLine) => findParentYaml(document, parentLine)
     };
     return provideHover(document, position, token, syntax);
 }
 
-function findProperty(line) {
+function findProperty(line: vscode.TextLine): string {
     const ix = line.text.indexOf(':');
     return line.text.substring(line.firstNonWhitespaceCharacterIndex, ix);
 }
 
-function findParentJson(document, line) {
+function findParentJson(document: vscode.TextDocument, line: number): number {
     let count = 1;
     while (line >= 0) {
         const txt = document.lineAt(line);
@@ -452,7 +457,7 @@ function findParentJson(document, line) {
     return line;
 }
 
-async function explain(obj, field) {
+function explain(obj: any, field: string | undefined): Promise<string | null> {
     return new Promise((resolve) => {
         if (!obj.kind) {
             vscode.window.showErrorMessage("Not a Kubernetes API Object!");
@@ -503,7 +508,7 @@ function explainActiveWindow() {
     }
 }
 
-let statusBarItem;
+let statusBarItem: vscode.StatusBarItem | undefined;
 
 function initStatusBar() {
     if (!statusBarItem) {
@@ -812,7 +817,7 @@ function findNameAndImage() {
     };
 }
 
-function _findNameAndImageInternal(fn) {
+function _findNameAndImageInternal(fn: (name: string, image: string) => void) {
     if (vscode.workspace.rootPath === undefined) {
         vscode.window.showErrorMessage('This command requires an open folder.');
         return;
