@@ -55,7 +55,7 @@ export interface ResourceNode {
     readonly id: string;
     readonly resourceId: string;
     uri(outputFormat: string): vscode.Uri;
-    namespace: string | null;
+    namespace: string | undefined;
 }
 
 export function isKubernetesExplorerResourceNode(obj: any): obj is ResourceNode {

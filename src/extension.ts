@@ -1276,7 +1276,8 @@ function execTerminalOnContainer(podName: string, podNamespace: string | undefin
 }
 
 async function isBashOnContainer(podName: string, podNamespace: string | undefined, containerName: string | undefined): Promise<boolean> {
-    const result = await kubectl.invokeAsync(`exec ${podName} -c ${containerName} -- ls -la /bin/bash`);
+    const nsarg = podNamespace ? `--namespace ${podNamespace}` : '';
+    const result = await kubectl.invokeAsync(`exec ${podName} ${nsarg} -c ${containerName} -- ls -la /bin/bash`);
     return !result.code;
 }
 
