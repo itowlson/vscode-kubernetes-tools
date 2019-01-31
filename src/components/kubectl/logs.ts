@@ -6,6 +6,7 @@ import * as kuberesources from '../../kuberesources';
 import { ResourceNode } from '../../explorer';
 import * as yaml from 'js-yaml';
 import * as kubectlUtils from '../../kubectlUtils';
+import { kubelogsfsUri } from '../logs/logs.virtualfs';
 
 export enum LogsDisplayMode {
     Show,
@@ -22,25 +23,30 @@ export async function logsKubernetes(
     displayMode: LogsDisplayMode
 ) {
     if (explorerNode) {
-        return await getLogsForExplorerPod(kubectl, explorerNode, displayMode);
+        // return await getLogsForExplorerPod(kubectl, explorerNode, displayMode);
+        const doc = await vscode.workspace.openTextDocument(kubelogsfsUri(explorerNode.namespace, explorerNode.resourceId));
+        if (doc) {
+            vscode.window.showTextDocument(doc);
+        }
+        return;
     }
 
     return logsForPod(kubectl, displayMode);
 }
 
-/**
- * Fetch logs from a Pod, when selected from the Explorer.
- */
-async function getLogsForExplorerPod(
-    kubectl: Kubectl,
-    explorerNode: ResourceNode,
-    displayMode: LogsDisplayMode
-) {
-    const namespace = explorerNode.namespace;
-    const podSummary = { name: explorerNode.id, namespace: namespace };
+// /**
+//  * Fetch logs from a Pod, when selected from the Explorer.
+//  */
+// async function getLogsForExplorerPod(
+//     kubectl: Kubectl,
+//     explorerNode: ResourceNode,
+//     displayMode: LogsDisplayMode
+// ) {
+//     const namespace = explorerNode.namespace;
+//     const podSummary = { name: explorerNode.id, namespace: namespace };
 
-    return await getLogsForPod(kubectl, podSummary, displayMode);
-}
+//     return await getLogsForPod(kubectl, podSummary, displayMode);
+// }
 
 /**
  * Fetches logs for a pod. If there are more than one containers,

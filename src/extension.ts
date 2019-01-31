@@ -72,6 +72,7 @@ import { HelmDocumentSymbolProvider } from './helm.symbolProvider';
 import { findParentYaml } from './yaml-support/yaml-navigation';
 import { linters } from './components/lint/linters';
 import { runClusterWizard } from './components/clusterprovider/clusterproviderserver';
+import { KubernetesLogsVirtualFileSystemProvider, K8S_LOGS_RESOURCE_SCHEME } from './components/logs/logs.virtualfs';
 
 let explainActive = false;
 let swaggerSpecPromise: Promise<any> | null = null;
@@ -120,6 +121,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<extens
     const treeProvider = explorer.create(kubectl, host);
     const helmRepoTreeProvider = helmRepoExplorer.create(host);
     const resourceDocProvider = new KubernetesResourceVirtualFileSystemProvider(kubectl, host, vscode.workspace.rootPath);
+    const logsDocProvider = new KubernetesLogsVirtualFileSystemProvider(kubectl, host, vscode.workspace.rootPath);
     const resourceLinkProvider = new KubernetesResourceLinkProvider();
     const previewProvider = new HelmTemplatePreviewDocumentProvider();
     const inspectProvider = new HelmInspectDocumentProvider();
@@ -252,6 +254,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<extens
 
         // Temporarily loaded resource providers
         vscode.workspace.registerFileSystemProvider(K8S_RESOURCE_SCHEME, resourceDocProvider, { /* TODO: case sensitive? */ }),
+        vscode.workspace.registerFileSystemProvider(K8S_LOGS_RESOURCE_SCHEME, logsDocProvider, { /* TODO: case sensitive? */ }),
 
         // Link from resources to referenced resources
         vscode.languages.registerDocumentLinkProvider({ scheme: K8S_RESOURCE_SCHEME }, resourceLinkProvider),
