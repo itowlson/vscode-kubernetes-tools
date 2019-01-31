@@ -34,7 +34,12 @@ interface Kubeconfig {
     }[] | undefined;
     readonly users: {
         readonly name: string;
-        readonly user: {};
+        readonly user: {
+            readonly 'auth-provider'?: {
+                readonly name: string,
+                readonly config: {}
+            }
+        };
     }[] | undefined;
 }
 
