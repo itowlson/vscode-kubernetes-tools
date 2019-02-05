@@ -8,6 +8,7 @@ import { Errorable } from './errorable';
 import { parseLineOutput } from './outputUtils';
 import * as compatibility from './components/kubectl/compatibility';
 import { getToolPath, affectsUs, getUseWsl } from './components/config/config';
+import opn = require('opn');
 
 const KUBECTL_OUTPUT_COLUMN_SEPARATOR = /\s+/g;
 
@@ -161,18 +162,57 @@ async function invokeWithProgress(context: Context, command: string, progressMes
     });
 }
 
-async function invokeAsync(context: Context, command: string, stdin?: string): Promise<ShellResult | undefined> {
-    if (await checkPresent(context, CheckPresentMessageMode.Command)) {
-        const bin = baseKubectlPath(context);
-        const cmd = `${bin} ${command}`;
-        const sr = await context.shell.exec(cmd, stdin);
-        if (sr && sr.code !== 0) {
-            checkPossibleIncompatibility(context);
-        }
-        return sr;
-    } else {
-        return { code: -1, stdout: '', stderr: '' };
-    }
+const AZURE_AUTH_REGEXP = /To sign in, use a web browser to open the page https:\/\/microsoft.com\/devicelogin and enter the code ([A-Z0-9]+) to authenticate./;
+
+function invokeAsync(context: Context, command: string, stdin?: string): Promise<ShellResult | undefined> {
+    return new Promise<ShellResult | undefined>((resolve) => {
+        checkPresent(context, CheckPresentMessageMode.Command).then((isPresent) => {
+            if (!isPresent) {
+                resolve({ code: -1, stdout: '', stderr: '' });
+                return;
+            }
+            const args = command.split(' ').filter((a) => a && a.length > 0);
+            spawnAsChild(context, args).then((process) => {
+                if (process) {
+                    let stdout = '';
+                    let stderr = '';
+                    process.stdout.on('data', (chunk) => {
+                        stdout += chunk.toString();
+                    });
+                    process.stderr.on('data', (chunk) => {
+                        stderr += chunk.toString();
+                        if (AZURE_AUTH_REGEXP.test(stderr)) {
+                            const deviceCode = AZURE_AUTH_REGEXP.exec(stderr)![1];
+                            const message = `Your cluster requires Microsoft Azure authentication. Open a web browser to https://microsoft.com/devicelogin and enter the code ${deviceCode}`;
+                            context.host.showErrorMessage(message, "Open in Browser").then((choice) => {
+                                if (choice) {
+                                    opn("https://microsoft.com/devicelogin");
+                                    context.host.showInformationMessage(`Your code is ${deviceCode}`);
+                                }
+                            });
+                            process.kill("SIGINT");
+                            resolve(undefined);
+                        }
+                    });
+                    process.on('exit', (code: number, signal: string) => {
+                        if (signal === "SIGINT") {
+                            resolve(undefined);
+                            return;
+                        }
+                        if (code !== 0) {
+                            checkPossibleIncompatibility(context);
+                        }
+                        resolve({ code, stdout, stderr });
+                    });
+                    if (stdin) {
+                        process.stdin.write(stdin);
+                    }
+                } else {
+                    resolve(undefined);
+                }
+            });
+        });
+    });
 }
 
 // TODO: invalidate this when the context changes or if we know kubectl has changed (e.g. config)
@@ -232,14 +272,11 @@ async function runAsTerminal(context: Context, command: string[], terminalName: 
 }
 
 async function kubectlInternal(context: Context, command: string, handler: ShellHandler): Promise<void> {
-    if (await checkPresent(context, CheckPresentMessageMode.Command)) {
-        const bin = baseKubectlPath(context);
-        const cmd = `${bin} ${command}`;
-        const sr = await context.shell.exec(cmd);
+    invokeAsync(context, command).then((sr) => {
         if (sr) {
             handler(sr.code, sr.stdout, sr.stderr);
         }
-    }
+    });
 }
 
 function kubectlDone(context: Context): ShellHandler {
