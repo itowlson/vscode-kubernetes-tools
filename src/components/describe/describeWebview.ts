@@ -77,9 +77,14 @@ export class DescribePanel {
         <title>Kubernetes describe ${this.resource}</title>
     </head>
     <body>
-        <code>
-            <pre>${this.content}</pre>
-        </code>
+        <div style="height=2em; width=100%">
+            Auto refresh
+        </div>
+        <div style="position: absolute; top: 2em; left: 0px; right: 0px; bottom: 0px; overflow-y: scroll">
+            <code>
+                <pre>${this.content}</pre>
+            </code>
+        </div>
     </body>
     </html>`;
     }
