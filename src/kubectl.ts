@@ -209,22 +209,6 @@ async function invokeAsync(context: Context, command: string, stdin?: string): P
     } else {
         return undefined;
     }
-
-    // return new Promise<ShellResult | undefined>((resolve) => {
-    //     checkPresent(context, CheckPresentMessageMode.Command).then((isPresent) => {
-    //         if (!isPresent) {
-    //             resolve({ code: -1, stdout: '', stderr: '' });
-    //             return;
-    //         }
-    //         execAsChild(context, command).then((process) => {
-    //             if (process) {
-    //                 resolveOnProcessCompletion(context, process, stdin, resolve);
-    //             } else {
-    //                 resolve(undefined);
-    //             }
-    //         });
-    //     });
-    // });
 }
 
 enum InteractiveLoginResult {
@@ -289,25 +273,6 @@ function resolveOnProcessCompletion(context: Context, process: ChildProcess, res
             }
         });
     }
-
-    // function attemptAzureLogin() {
-    //     hasAttemptedAzureLogin = true;
-    //     const deviceCode = AZURE_AUTH_REGEXP.exec(stderr)![1];
-    //     const message = `Your cluster requires Microsoft Azure authentication. Open a web browser to https://microsoft.com/devicelogin and enter the code ${deviceCode}`;
-    //     context.host.showErrorMessage(message, "Open in Browser").then((choice) => {
-    //         if (choice) {
-    //             browser.open("https://microsoft.com/devicelogin");
-    //             context.host.showInformationMessage(`Your code is ${deviceCode}`, "I successfully signed in", "My sign-in failed").then((signInResult) => {
-    //                 if (signInResult !== "I successfully signed in") {
-    //                     killIfHung();
-    //                 }
-    //             });
-    //         }
-    //         else {
-    //             killIfHung();
-    //         }
-    //     });
-    // }
 
     const SUCCESSFULLY_SIGNED_IN = 'I successfully signed in';
     const SIGN_IN_FAILED = 'My sign-in failed';
