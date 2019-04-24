@@ -263,7 +263,6 @@
                     "id": "kubernetes.cloudExplorer",
                     "name": "Clouds"
                 }
-
             ]
         },
         "viewsContainers": {
@@ -985,11 +984,11 @@
             }
         ],
         "keybindings": [
-			{
-				"command": "extension.vsKubernetesDescribe.Refresh",
-				"key": "shift+ctrl+r",
-				"mac": "shift+cmd+r",
-				"when": "vscodeKubernetesDescribeContext"
+            {
+                "command": "extension.vsKubernetesDescribe.Refresh",
+                "key": "shift+ctrl+r",
+                "mac": "shift+cmd+r",
+                "when": "vscodeKubernetesDescribeContext"
             }
         ],
         "languages": [
@@ -1169,6 +1168,7 @@
         "sshpk": "^1.13.2",
         "tar": "^4.4.1",
         "tmp": "^0.0.31",
+        "tree-kill": "^1.2.1",
         "url-parse": "^1.4.3",
         "uuid": "^3.1.0",
         "vscode-debugadapter": "1.27.0",

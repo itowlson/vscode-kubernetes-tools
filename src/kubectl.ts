@@ -1,5 +1,7 @@
 import { Terminal, Disposable } from 'vscode';
-import { ChildProcess, spawn as spawnChildProcess } from "child_process";
+import { ChildProcess, spawn as spawnChildProcess, exec as execChildProcess } from "child_process";
+import * as treekill from 'tree-kill';
+
 import { Host } from './host';
 import { FS } from './fs';
 import { Shell, ShellHandler, ShellResult } from './shell';
@@ -10,6 +12,7 @@ import * as compatibility from './components/kubectl/compatibility';
 import { getToolPath, affectsUs, getUseWsl, KubectlVersioning } from './components/config/config';
 import { ensureSuitableKubectl } from './components/kubectl/autoversion';
 import * as browser from './components/platform/browser';
+import { sleep } from './sleep';
 
 const KUBECTL_OUTPUT_COLUMN_SEPARATOR = /\s+/g;
 
@@ -187,55 +190,149 @@ async function invokeWithProgress(context: Context, command: string, progressMes
 
 const AZURE_AUTH_REGEXP = /To sign in, use a web browser to open the page https:\/\/microsoft.com\/devicelogin and enter the code ([A-Z0-9]+) to authenticate./;
 
-function invokeAsync(context: Context, command: string, stdin?: string): Promise<ShellResult | undefined> {
-    return new Promise<ShellResult | undefined>((resolve) => {
-        checkPresent(context, CheckPresentMessageMode.Command).then((isPresent) => {
-            if (!isPresent) {
-                resolve({ code: -1, stdout: '', stderr: '' });
-                return;
-            }
-            const args = command.split(' ').filter((a) => a && a.length > 0);
-            spawnAsChild(context, args).then((process) => {
-                if (process) {
-                    let stdout = '';
-                    let stderr = '';
-                    process.stdout.on('data', (chunk) => {
-                        stdout += chunk.toString();
-                    });
-                    process.stderr.on('data', (chunk) => {
-                        stderr += chunk.toString();
-                        if (AZURE_AUTH_REGEXP.test(stderr)) {
-                            const deviceCode = AZURE_AUTH_REGEXP.exec(stderr)![1];
-                            const message = `Your cluster requires Microsoft Azure authentication. Open a web browser to https://microsoft.com/devicelogin and enter the code ${deviceCode}`;
-                            context.host.showErrorMessage(message, "Open in Browser").then((choice) => {
-                                if (choice) {
-                                    browser.open("https://microsoft.com/devicelogin");
-                                    context.host.showInformationMessage(`Your code is ${deviceCode}`);
-                                }
-                            });
-                            process.kill("SIGINT");
-                            resolve(undefined);
-                        }
-                    });
-                    process.on('exit', (code: number, signal: string) => {
-                        if (signal === "SIGINT") {
-                            resolve(undefined);
-                            return;
-                        }
-                        if (code !== 0) {
-                            checkPossibleIncompatibility(context);
-                        }
-                        resolve({ code, stdout, stderr });
-                    });
-                    if (stdin) {
-                        process.stdin.write(stdin);
-                    }
-                } else {
-                    resolve(undefined);
+async function invokeAsync(context: Context, command: string, stdin?: string): Promise<ShellResult | undefined> {
+    const isPresent = await checkPresent(context, CheckPresentMessageMode.Command);
+    if (!isPresent) {
+        return { code: -1, stdout: '', stderr: '' };
+    }
+
+    const process = await execAsChild(context, command);
+
+    if (process) {
+        const promise = new Promise<ShellResult | undefined>((resolve) => {
+            resolveOnProcessCompletion(context, process, resolve);
+        });
+        if (stdin) {
+            process.stdin.write(stdin);
+        }
+        return await promise;
+    } else {
+        return undefined;
+    }
+
+    // return new Promise<ShellResult | undefined>((resolve) => {
+    //     checkPresent(context, CheckPresentMessageMode.Command).then((isPresent) => {
+    //         if (!isPresent) {
+    //             resolve({ code: -1, stdout: '', stderr: '' });
+    //             return;
+    //         }
+    //         execAsChild(context, command).then((process) => {
+    //             if (process) {
+    //                 resolveOnProcessCompletion(context, process, stdin, resolve);
+    //             } else {
+    //                 resolve(undefined);
+    //             }
+    //         });
+    //     });
+    // });
+}
+
+enum InteractiveLoginResult {
+    ConfirmedSuccess,
+    ConfirmedFailure,
+    NotNotified,
+}
+
+function resolveOnProcessCompletion(context: Context, process: ChildProcess, resolvePromise: (value: ShellResult | undefined | PromiseLike<ShellResult | undefined>) => void) {
+    let stdout = '';
+    let stderr = '';
+    let hasExited = false;
+    let hasAttemptedAzureLogin = false;
+
+    process.stdout.on('data', (chunk) => {
+        stdout += chunk.toString();
+    });
+
+    process.stderr.on('data', (chunk) => {
+        stderr += chunk.toString();
+        if (AZURE_AUTH_REGEXP.test(stderr) && !hasAttemptedAzureLogin) {  // don't prompt again if we pile extra stuff onto stderr after the login
+            attemptAzureLogin().then((loginResult) => {
+                switch (loginResult) {
+                    case InteractiveLoginResult.ConfirmedSuccess:
+                        // nothing to do - command will proceed once sign in detected
+                        break;
+                    case InteractiveLoginResult.ConfirmedFailure:
+                        // kubectl is likely to be still hung - terminate it so we can resolve the promise
+                        killIfHung();
+                        break;
+                    case InteractiveLoginResult.NotNotified:
+                        // user might have signed in by themself, or might have done nothing - see if kubectl appears
+                        // to be responding, and if not kill it so we don't end up with a process hanging around in the background
+                        killIfHung();
+                        break;
                 }
             });
-        });
+        }
     });
+
+    process.on('exit', (code: number, signal: string) => {
+        hasExited = true;
+        if (signal === "SIGINT") {
+            resolvePromise(undefined);
+            return;
+        }
+        if (code !== 0) {
+            checkPossibleIncompatibility(context);
+        }
+        resolvePromise({ code, stdout, stderr });
+        return;
+    });
+
+    function killIfHung() {
+        // The user might have carried out the sign-in process behind our backs, in which case
+        // hopefully the command has completed; but if the user has done nothing and kubectl is
+        // still at the prompt, we don't want to leave it hanging...
+        sleep(1000).then(() => {
+            if (!hasExited && stdout.trim().length === 0) {
+                treekill(process.pid, "SIGINT");
+                resolvePromise(undefined);
+            }
+        });
+    }
+
+    // function attemptAzureLogin() {
+    //     hasAttemptedAzureLogin = true;
+    //     const deviceCode = AZURE_AUTH_REGEXP.exec(stderr)![1];
+    //     const message = `Your cluster requires Microsoft Azure authentication. Open a web browser to https://microsoft.com/devicelogin and enter the code ${deviceCode}`;
+    //     context.host.showErrorMessage(message, "Open in Browser").then((choice) => {
+    //         if (choice) {
+    //             browser.open("https://microsoft.com/devicelogin");
+    //             context.host.showInformationMessage(`Your code is ${deviceCode}`, "I successfully signed in", "My sign-in failed").then((signInResult) => {
+    //                 if (signInResult !== "I successfully signed in") {
+    //                     killIfHung();
+    //                 }
+    //             });
+    //         }
+    //         else {
+    //             killIfHung();
+    //         }
+    //     });
+    // }
+
+    const SUCCESSFULLY_SIGNED_IN = 'I successfully signed in';
+    const SIGN_IN_FAILED = 'My sign-in failed';
+
+    async function attemptAzureLogin(): Promise<InteractiveLoginResult> {
+        hasAttemptedAzureLogin = true;
+        const deviceCode = AZURE_AUTH_REGEXP.exec(stderr)![1];
+        const message = `Your cluster requires Microsoft Azure authentication. Open a web browser to https://microsoft.com/devicelogin and enter the code ${deviceCode}`;
+
+        const openBrowserChoice = await context.host.showErrorMessage(message, "Open in Browser");
+        if (!openBrowserChoice) {
+            return InteractiveLoginResult.NotNotified;
+        }
+
+        browser.open("https://microsoft.com/devicelogin");
+        const notifiedSignInResult = await context.host.showInformationMessage(`Your code is ${deviceCode}`, SUCCESSFULLY_SIGNED_IN, SIGN_IN_FAILED);
+
+        if (notifiedSignInResult === SUCCESSFULLY_SIGNED_IN) {
+            return InteractiveLoginResult.ConfirmedSuccess;
+        } else if (notifiedSignInResult === SIGN_IN_FAILED) {
+            return InteractiveLoginResult.ConfirmedFailure;
+        } else {
+            return InteractiveLoginResult.NotNotified;
+        }
+    }
 }
 
 // TODO: invalidate this when the context changes or if we know kubectl has changed (e.g. config)
@@ -263,6 +360,14 @@ async function invokeAsyncWithProgress(context: Context, command: string, progre
 async function spawnAsChild(context: Context, command: string[]): Promise<ChildProcess | undefined> {
     if (await checkPresent(context, CheckPresentMessageMode.Command)) {
         return spawnChildProcess(await path(context), command, context.shell.execOpts());
+    }
+    return undefined;
+}
+
+async function execAsChild(context: Context, command: string): Promise<ChildProcess | undefined> {
+    if (await checkPresent(context, CheckPresentMessageMode.Command)) {
+        const kubectlPath = await path(context);
+        return execChildProcess(`${kubectlPath} ${command}`, context.shell.execOpts());
     }
     return undefined;
 }
