@@ -12,6 +12,7 @@ import * as compatibility from './components/kubectl/compatibility';
 import { getToolPath, affectsUs, getUseWsl, KubectlVersioning } from './components/config/config';
 import { ensureSuitableKubectl } from './components/kubectl/autoversion';
 import * as browser from './components/platform/browser';
+import * as clipboard from './components/platform/clipboard';
 import { sleep } from './sleep';
 
 const KUBECTL_OUTPUT_COLUMN_SEPARATOR = /\s+/g;
@@ -287,8 +288,9 @@ function resolveOnProcessCompletion(context: Context, process: ChildProcess, res
             return InteractiveLoginResult.NotNotified;
         }
 
+        clipboard.write(deviceCode);
         browser.open("https://microsoft.com/devicelogin");
-        const notifiedSignInResult = await context.host.showInformationMessage(`Your code is ${deviceCode}`, SUCCESSFULLY_SIGNED_IN, SIGN_IN_FAILED);
+        const notifiedSignInResult = await context.host.showInformationMessage(`Your code is ${deviceCode} (and has been placed on the clipboard)`, SUCCESSFULLY_SIGNED_IN, SIGN_IN_FAILED);
 
         if (notifiedSignInResult === SUCCESSFULLY_SIGNED_IN) {
             return InteractiveLoginResult.ConfirmedSuccess;
