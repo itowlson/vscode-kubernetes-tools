@@ -10,3 +10,6 @@ tsconfig.json
 vsc-extension-quickstart.md
 images/screenshots/**
 docs/**
+node_modules
+out/
+webpack.config.js

@@ -2150,6 +2150,7 @@ async function kubeconfigFromTreeNode(target?: CloudExplorerTreeNode): Promise<s
         await vscode.window.showErrorMessage('This command requires a cluster to be selected in Cloud Explorer');
         return undefined;
     }
+
     const kubeconfigYaml = await target.provider.getKubeconfigYaml(target.value);
     return kubeconfigYaml;
 }

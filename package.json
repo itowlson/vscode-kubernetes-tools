@@ -2,7 +2,7 @@
     "name": "vscode-kubernetes-tools",
     "displayName": "Kubernetes",
     "description": "Develop, deploy and debug Kubernetes applications",
-    "version": "0.1.19+preview6",
+    "version": "0.1.19+preview7",
     "preview": true,
     "publisher": "ms-kubernetes-tools",
     "engines": {
@@ -97,7 +97,7 @@
         "onFileSystem:k8smsx",
         "onDebug"
     ],
-    "main": "./out/src/extension",
+    "main": "./dist/extension",
     "contributes": {
         "configuration": {
             "type": "object",
@@ -270,7 +270,6 @@
                     "id": "kubernetes.cloudExplorer",
                     "name": "Clouds"
                 }
-
             ]
         },
         "viewsContainers": {
@@ -1007,11 +1006,11 @@
             }
         ],
         "keybindings": [
-			{
-				"command": "extension.vsKubernetesDescribe.Refresh",
-				"key": "shift+ctrl+r",
-				"mac": "shift+cmd+r",
-				"when": "vscodeKubernetesDescribeContext"
+            {
+                "command": "extension.vsKubernetesDescribe.Refresh",
+                "key": "shift+ctrl+r",
+                "mac": "shift+cmd+r",
+                "when": "vscodeKubernetesDescribeContext"
             }
         ],
         "languages": [
@@ -1140,9 +1139,10 @@
         ]
     },
     "scripts": {
-        "vscode:prepublish": "npm run compile",
-        "compile": "tsc -p ./",
-        "watch": "tsc -watch -p ./",
+        "vscode:prepublish": "webpack --mode production",
+        "compile": "webpack --mode none",
+        "test-compile": "tsc -p ./",
+        "watch": "webpack --mode none --watch",
         "postinstall": "node ./node_modules/vscode/bin/install",
         "test": "npm run compile && node ./node_modules/vscode/bin/test"
     },
@@ -1207,9 +1207,12 @@
         "gulp": "^4.0.0",
         "gulp-tslint": "^8.1.2",
         "mocha": "^4.1.0",
+        "ts-loader": "^5.4.5",
         "tslint": "^5.9.1",
         "typescript": "^3.2.2",
-        "vscode": "^1.1.21"
+        "vscode": "^1.1.21",
+        "webpack": "^4.30.0",
+        "webpack-cli": "^3.3.1"
     },
     "repository": {
         "type": "git",
