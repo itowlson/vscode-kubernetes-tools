@@ -40,8 +40,10 @@ class ClusterExplorerV1Impl implements ClusterExplorerV1 {
     get nodeSources(): ClusterExplorerV1.NodeSources {
         return {
             resourceFolder: resourceFolderContributor,
+            resourceFolderFiltered: resourceFolderFilteredContributor,
             groupingFolder: groupingFolderContributor,
-            resources: resourcesContributor
+            resources: resourcesContributor,
+            resourceFolderWithHierarchy: resourceFolderWithHierarchyContributor
         };
     }
 
