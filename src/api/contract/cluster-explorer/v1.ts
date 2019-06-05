@@ -94,6 +94,11 @@ export namespace ClusterExplorerV1 {
         readonly abbreviation: string;
     }
 
+    export interface Resource {
+        readonly name: string;
+        readonly metadata?: any;
+    }
+
     export interface NodeSource {
         at(parentFolder: string | undefined): NodeContributor;
         if(condition: () => boolean | Thenable<boolean>): NodeSource;
@@ -103,5 +108,6 @@ export namespace ClusterExplorerV1 {
     export interface NodeSources {
         resourceFolder(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string): NodeSource;
         groupingFolder(displayName: string, contextValue: string | undefined, ...children: NodeSource[]): NodeSource;
+        resources(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string, fetcher: () => Promise<Resource[]>): NodeSource;
     }
 }

@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 
 import { ClusterExplorerV1 } from "../../contract/cluster-explorer/v1";
 import { ExplorerExtender, ExplorerUICustomizer } from "../../../explorer.extension";
-import { KUBERNETES_EXPLORER_NODE_CATEGORY, KubernetesObject, ResourceFolder, ResourceNode, KubernetesExplorer, CustomResourceFolderNodeSource, CustomGroupingFolderNodeSource, NodeSourceImpl } from "../../../explorer";
+import { KUBERNETES_EXPLORER_NODE_CATEGORY, KubernetesObject, ResourceFolder, ResourceNode, KubernetesExplorer, CustomResourceFolderNodeSource, CustomGroupingFolderNodeSource, NodeSourceImpl, CustomResourcesNodeSource } from "../../../explorer";
 import { Kubectl } from "../../../kubectl";
 import { Host } from "../../../host";
 import { KubectlContext } from '../../../kubectlUtils';
@@ -40,7 +40,8 @@ class ClusterExplorerV1Impl implements ClusterExplorerV1 {
     get nodeSources(): ClusterExplorerV1.NodeSources {
         return {
             resourceFolder: resourceFolderContributor,
-            groupingFolder: groupingFolderContributor
+            groupingFolder: groupingFolderContributor,
+            resources: resourcesContributor
         };
     }
 
@@ -137,6 +138,11 @@ function resourceFolderContributor(displayName: string, pluralDisplayName: strin
 
 function groupingFolderContributor(displayName: string, contextValue: string | undefined, ...children: ClusterExplorerV1.NodeSource[]): ClusterExplorerV1.NodeSource {
     const nodeSource = new CustomGroupingFolderNodeSource(displayName, contextValue, children.map(internalNodeSourceOf));
+    return apiNodeSourceOf(nodeSource);
+}
+
+function resourcesContributor(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string, fetcher: () => Promise<ClusterExplorerV1.Resource[]>): ClusterExplorerV1.NodeSource {
+    const nodeSource = new CustomResourcesNodeSource(new ResourceKind(displayName, pluralDisplayName, manifestKind, abbreviation), fetcher);
     return apiNodeSourceOf(nodeSource);
 }
 

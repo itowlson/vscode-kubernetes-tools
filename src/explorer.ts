@@ -673,6 +673,22 @@ export class CustomGroupingFolderNodeSource extends NodeSourceImpl {
     }
 }
 
+export interface CustomResourceInfo {
+    readonly name: string;
+    readonly metadata?: any;
+}
+
+export class CustomResourcesNodeSource extends NodeSourceImpl {
+    constructor(private readonly resourceKind: kuberesources.ResourceKind, private readonly fetcher: () => Promise<CustomResourceInfo[]>) {
+        super();
+    }
+
+    async nodes(): Promise<KubernetesObject[]> {
+        const resources = await this.fetcher();
+        return resources.map((r) => new KubernetesResource(this.resourceKind, r.name, r.metadata));
+    }
+}
+
 class ConditionalNodeSource extends NodeSourceImpl {
     constructor(private readonly impl: NodeSourceImpl, private readonly condition: () => boolean | Thenable<boolean>) {
         super();

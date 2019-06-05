@@ -81,6 +81,8 @@ import { sleep } from './sleep';
 import { CloudExplorer, CloudExplorerTreeNode } from './components/cloudexplorer/cloudexplorer';
 import { mergeToKubeconfig } from './components/kubectl/kubeconfig';
 import { PortForwardStatusBarManager } from './components/kubectl/port-forward-ui';
+import { ClusterExplorerV1 } from './api/contract/cluster-explorer/v1';
+import { KubectlV1 } from './api/contract/kubectl/v1';
 
 let explainActive = false;
 let swaggerSpecPromise: Promise<explainer.SwaggerModel | undefined> | null = null;
@@ -120,6 +122,8 @@ export const HELM_MODE: vscode.DocumentFilter = { language: "helm", scheme: "fil
 export const HELM_REQ_MODE: vscode.DocumentFilter = { language: "helm", scheme: "file", pattern: "**/requirements.yaml"};
 export const HELM_CHART_MODE: vscode.DocumentFilter = { language: "helm", scheme: "file", pattern: "**/Chart.yaml" };
 export const HELM_TPL_MODE: vscode.DocumentFilter = { language: "helm", scheme: "file", pattern: "**/templates/*.*" };
+
+let API_BEAST: APIBroker | null = null;
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
@@ -377,7 +381,37 @@ export async function activate(context: vscode.ExtensionContext): Promise<APIBro
     await registerYamlSchemaSupport();
 
     vscode.workspace.registerTextDocumentContentProvider(configmaps.uriScheme, configMapProvider);
-    return apiBroker(clusterProviderRegistry, kubectl, portForwardStatusBarManager, treeProvider, cloudExplorer);
+    API_BEAST = apiBroker(clusterProviderRegistry, kubectl, portForwardStatusBarManager, treeProvider, cloudExplorer);
+
+    return API_BEAST;
+}
+
+class CRDetailer implements ClusterExplorerV1.NodeContributor {
+    constructor(private readonly cee: ClusterExplorerV1) {}
+    contributesChildren(parent: ClusterExplorerV1.ClusterExplorerResourceNode | ClusterExplorerV1.ClusterExplorerGroupingFolderNode | ClusterExplorerV1.ClusterExplorerResourceFolderNode | ClusterExplorerV1.ClusterExplorerContextNode | ClusterExplorerV1.ClusterExplorerInactiveContextNode | ClusterExplorerV1.ClusterExplorerConfigDataItemNode | ClusterExplorerV1.ClusterExplorerErrorNode | ClusterExplorerV1.ClusterExplorerHelmReleaseNode | ClusterExplorerV1.ClusterExplorerExtensionNode | undefined): boolean {
+        return !!parent && parent.nodeType === 'resource' && parent.resourceKind.manifestKind === 'ClusterRole';
+    }
+    async getChildren(parent: ClusterExplorerV1.ClusterExplorerResourceNode | ClusterExplorerV1.ClusterExplorerGroupingFolderNode | ClusterExplorerV1.ClusterExplorerResourceFolderNode | ClusterExplorerV1.ClusterExplorerContextNode | ClusterExplorerV1.ClusterExplorerInactiveContextNode | ClusterExplorerV1.ClusterExplorerConfigDataItemNode | ClusterExplorerV1.ClusterExplorerErrorNode | ClusterExplorerV1.ClusterExplorerHelmReleaseNode | ClusterExplorerV1.ClusterExplorerExtensionNode | undefined): Promise<ClusterExplorerV1.Node[]> {
+        if (parent && parent.nodeType === 'resource' && parent.resourceKind.manifestKind === 'ClusterRole') {
+            const ns = this.cee.nodeSources.resources('Pod', 'Pods', 'Pod', 'pods', () => this.poddles(parent.name));
+            return await ns.nodes();  // TODO: I kind of feel like this shouldn't be the extn author's problem
+        }
+        return [];
+    }
+
+    async poddles(crname: string): Promise<ClusterExplorerV1.Resource[]> {
+        if (API_BEAST) {
+            const kr = API_BEAST.get('kubectl', 'v1');
+            if (kr.available) {
+                const kc = kr.api as KubectlV1;
+                const jr = await kc.invokeCommand('get pods -o json');
+                const j: any[] = JSON.parse(jr!.stdout).items;
+                return j.map((r) => ({ name: r.metadata.name, metadata: r.metadata }) as ClusterExplorerV1.Resource).filter((r) => r.name.startsWith(crname[0]));
+            }
+        }
+        return [];
+    }
+
 }
 
 // this method is called when your extension is deactivated
@@ -766,10 +800,13 @@ function getKubernetes(explorerNode?: any) {
         const nsarg = resourceNode.namespace ? `--namespace ${resourceNode.namespace}` : '';
         kubectl.invokeInSharedTerminal(`get ${id} ${nsarg} -o wide`);
     } else {
-        findKindNameOrPrompt(kuberesources.commonKinds, 'get', { nameOptional: true }, (value) => {
-            kubectl.invokeInSharedTerminal(` get ${value} -o wide`);
-        });
-    }
+        const ce = API_BEAST!.get('clusterexplorer', 'v1');
+        if (ce.available) {
+            const cee = ce.api as ClusterExplorerV1;
+            cee.registerNodeContributor(cee.nodeSources.resourceFolder('CR', 'CRs', 'ClusterRole', 'clusterrole').at('Workloads'));
+            cee.registerNodeContributor(new CRDetailer(cee));
+        }
+        }
 }
 
 function findVersion() {
