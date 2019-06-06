@@ -335,7 +335,7 @@ class KubernetesStorageFolder extends KubernetesFolder {
 }
 
 class KubernetesResourceFolder extends KubernetesFolder implements ResourceFolder {
-    constructor(readonly kind: kuberesources.ResourceKind) {
+    constructor(readonly kind: kuberesources.ResourceKind, readonly selector?: string) {
         super("folder.resource", kind.abbreviation, kind.pluralDisplayName, "vsKubernetes.kind");
     }
 
@@ -346,14 +346,15 @@ class KubernetesResourceFolder extends KubernetesFolder implements ResourceFolde
                 return new KubernetesResource(this.kind, pod.name, pod);
             });
         }
-        const childrenLines = await kubectl.asLines(`get ${this.kind.abbreviation}`);
+        const selectorArg = this.selector ? `--selector=${this.selector}` : '';
+        const childrenLines = await kubectl.asLines(`get ${this.kind.abbreviation} ${selectorArg}`);
         if (failed(childrenLines)) {
             host.showErrorMessage(childrenLines.error[0]);
             return [new DummyObject("Error")];
         }
         return childrenLines.result.map((line) => {
             const bits = line.split(' ');
-            return new KubernetesResource(this.kind, bits[0]);
+            return new KubernetesResource(this.kind, bits[0], undefined, childificator);
         });
     }
 }
@@ -361,7 +362,7 @@ class KubernetesResourceFolder extends KubernetesFolder implements ResourceFolde
 class KubernetesResource extends KubernetesExplorerNodeImpl implements KubernetesObject, ResourceNode {
     readonly resourceId: string;
 
-    constructor(readonly kind: kuberesources.ResourceKind, readonly id: string, readonly metadata?: any) {
+    constructor(readonly kind: kuberesources.ResourceKind, readonly id: string, readonly metadata?: any, readonly childificator?: something) {
         super("resource");
         this.resourceId = `${kind.abbreviation}/${id}`;
     }
@@ -375,6 +376,9 @@ class KubernetesResource extends KubernetesExplorerNodeImpl implements Kubernete
     }
 
     async getChildren(kubectl: Kubectl, _host: Host): Promise<KubernetesObject[]> {
+        if (this.childificator) {
+            return something;
+        }
         if (this.kind !== kuberesources.allKinds.pod) {
             return [];
         }
@@ -407,6 +411,10 @@ class KubernetesResource extends KubernetesExplorerNodeImpl implements Kubernete
 
         if (this.namespace) {
             treeItem.tooltip = `Namespace: ${this.namespace}`;  // TODO: show only if in non-current namespace?
+        }
+
+        if (this.childificator) {
+            treeItem.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
         }
 
         if (this.kind === kuberesources.allKinds.pod) {
@@ -651,6 +659,26 @@ export abstract class NodeSourceImpl {
 
 export class CustomResourceFolderNodeSource extends NodeSourceImpl {
     constructor(private readonly resourceKind: kuberesources.ResourceKind) {
+        super();
+    }
+
+    async nodes(): Promise<KubernetesObject[]> {
+        return [new KubernetesResourceFolder(this.resourceKind)];
+    }
+}
+
+export class CustomResourceFolderFilteredNodeSource extends NodeSourceImpl {
+    constructor(private readonly resourceKind: kuberesources.ResourceKind, private readonly selector: string | undefined) {
+        super();
+    }
+
+    async nodes(): Promise<KubernetesObject[]> {
+        return [new KubernetesResourceFolder(this.resourceKind, this.selector)];
+    }
+}
+
+export class CustomResourceFolderWithHierarchyNodeSource extends NodeSourceImpl {
+    constructor(private readonly resourceKind: kuberesources.ResourceKind, private readonly nextLevel: (name: string) => Something) {
         super();
     }
 

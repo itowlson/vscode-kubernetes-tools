@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 
 import { ClusterExplorerV1 } from "../../contract/cluster-explorer/v1";
 import { ExplorerExtender, ExplorerUICustomizer } from "../../../explorer.extension";
-import { KUBERNETES_EXPLORER_NODE_CATEGORY, KubernetesObject, ResourceFolder, ResourceNode, KubernetesExplorer, CustomResourceFolderNodeSource, CustomGroupingFolderNodeSource, NodeSourceImpl, CustomResourcesNodeSource } from "../../../explorer";
+import { KUBERNETES_EXPLORER_NODE_CATEGORY, KubernetesObject, ResourceFolder, ResourceNode, KubernetesExplorer, CustomResourceFolderNodeSource, CustomGroupingFolderNodeSource, NodeSourceImpl, CustomResourcesNodeSource, CustomResourceFolderFilteredNodeSource, CustomResourceFolderWithHierarchyNodeSource } from "../../../explorer";
 import { Kubectl } from "../../../kubectl";
 import { Host } from "../../../host";
 import { KubectlContext } from '../../../kubectlUtils';
@@ -135,6 +135,17 @@ class ContributedNode implements KubernetesObject {
 
 function resourceFolderContributor(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string): ClusterExplorerV1.NodeSource {
     const nodeSource = new CustomResourceFolderNodeSource(new ResourceKind(displayName, pluralDisplayName, manifestKind, abbreviation));
+    return apiNodeSourceOf(nodeSource);
+}
+
+function resourceFolderFilteredContributor(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string, filter: { selector?: string }): ClusterExplorerV1.NodeSource {
+    const nodeSource = new CustomResourceFolderFilteredNodeSource(new ResourceKind(displayName, pluralDisplayName, manifestKind, abbreviation), filter.selector);
+    return apiNodeSourceOf(nodeSource);
+}
+
+function resourceFolderWithHierarchyContributor(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string,
+    nextLevel: (name: string) => ClusterExplorerV1.NodeSource | Promise<ClusterExplorerV1.Node[]> | null): ClusterExplorerV1.NodeSource {
+    const nodeSource = new CustomResourceFolderWithHierarchyNodeSource(new ResourceKind(displayName, pluralDisplayName, manifestKind, abbreviation));
     return apiNodeSourceOf(nodeSource);
 }
 

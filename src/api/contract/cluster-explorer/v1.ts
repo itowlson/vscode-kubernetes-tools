@@ -107,12 +107,12 @@ export namespace ClusterExplorerV1 {
 
     export interface NodeSources {
         resourceFolder(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string): NodeSource;
-        resourceFolderFiltered(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string, filter: { selector?: string, filter?: (r: any) => boolean }): NodeSource;
+        resourceFolderFiltered(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string, filter: { selector?: string }): NodeSource;
         groupingFolder(displayName: string, contextValue: string | undefined, ...children: NodeSource[]): NodeSource;
         resources(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string, fetcher: () => Promise<Resource[]>): NodeSource;
         // resourceHierarchy(topLevelDisplayName: string, topLevelPluralDisplayName: string, topLevelManifestKind: string, topLevelAbbreviation: string,
         //     traverse: (abbr: string, name: string) => [string, string, string, string, string /* kc selector */, Predicate /* client side filter */, boolean /* expandable */]): NodeSource;
         resourceFolderWithHierarchy(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string,
-            nextLevel: (abbr: string, name: string) => NodeSource | Promise<Node[]> | null): NodeSource;
+            nextLevel: (name: string) => NodeSource | Promise<Node[]> | null): NodeSource;
     }
 }
