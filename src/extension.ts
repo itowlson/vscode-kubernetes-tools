@@ -81,7 +81,7 @@ import { sleep } from './sleep';
 import { CloudExplorer, CloudExplorerTreeNode } from './components/cloudexplorer/cloudexplorer';
 import { mergeToKubeconfig } from './components/kubectl/kubeconfig';
 import { PortForwardStatusBarManager } from './components/kubectl/port-forward-ui';
-import { ClusterExplorerNode, ClusterExplorerConfigurationValueNode, ClusterExplorerResourceNodeItf } from './components/clusterexplorer/node';
+import { ClusterExplorerNode, ClusterExplorerConfigurationValueNode, ClusterExplorerResourceNode } from './components/clusterexplorer/node';
 import { ConfigurationResourceNode } from './components/clusterexplorer/node.resource.configuration';
 
 let explainActive = false;
@@ -163,16 +163,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<APIBro
             (uri: vscode.Uri) => kubectlUtils.deleteResourceFromUri(uri, kubectl)),
         registerCommand('extension.vsKubernetesApplyFile',
             (uri: vscode.Uri) => kubectlUtils.applyResourceFromUri(uri, kubectl)),
-        registerCommand('extension.vsKubernetesDelete', (explorerNode: ClusterExplorerResourceNodeItf) => { deleteKubernetes(KubernetesDeleteMode.Graceful, explorerNode); }),
-        registerCommand('extension.vsKubernetesDeleteNow', (explorerNode: ClusterExplorerResourceNodeItf) => { deleteKubernetes(KubernetesDeleteMode.Now, explorerNode); }),
+        registerCommand('extension.vsKubernetesDelete', (explorerNode: ClusterExplorerResourceNode) => { deleteKubernetes(KubernetesDeleteMode.Graceful, explorerNode); }),
+        registerCommand('extension.vsKubernetesDeleteNow', (explorerNode: ClusterExplorerResourceNode) => { deleteKubernetes(KubernetesDeleteMode.Now, explorerNode); }),
         registerCommand('extension.vsKubernetesDescribe.Refresh', DescribePanel.refreshCommand),
         registerCommand('extension.vsKubernetesApply', applyKubernetes),
         registerCommand('extension.vsKubernetesExplain', explainActiveWindow),
         registerCommand('extension.vsKubernetesLoad', loadKubernetes),
         registerCommand('extension.vsKubernetesGet', getKubernetes),
         registerCommand('extension.vsKubernetesRun', runKubernetes),
-        registerCommand('extension.vsKubernetesShowLogs', (explorerNode: ClusterExplorerResourceNodeItf) => { logsKubernetes(kubectl, explorerNode, LogsDisplayMode.Show); }),
-        registerCommand('extension.vsKubernetesFollowLogs', (explorerNode: ClusterExplorerResourceNodeItf) => { logsKubernetes(kubectl, explorerNode, LogsDisplayMode.Follow); }),
+        registerCommand('extension.vsKubernetesShowLogs', (explorerNode: ClusterExplorerResourceNode) => { logsKubernetes(kubectl, explorerNode, LogsDisplayMode.Show); }),
+        registerCommand('extension.vsKubernetesFollowLogs', (explorerNode: ClusterExplorerResourceNode) => { logsKubernetes(kubectl, explorerNode, LogsDisplayMode.Follow); }),
         registerCommand('extension.vsKubernetesExpose', exposeKubernetes),
         registerCommand('extension.vsKubernetesDescribe', describeKubernetes),
         registerCommand('extension.vsKubernetesSync', syncKubernetes),
@@ -206,12 +206,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<APIBro
             }
         }),
         registerCommand('extension.vsKubernetesCopy', copyKubernetes),
-        registerCommand('extension.vsKubernetesPortForward', (explorerNode: ClusterExplorerResourceNodeItf) => { portForwardKubernetes(kubectl, explorerNode); }),
+        registerCommand('extension.vsKubernetesPortForward', (explorerNode: ClusterExplorerResourceNode) => { portForwardKubernetes(kubectl, explorerNode); }),
         registerCommand('extension.vsKubernetesLoadConfigMapData', configmaps.loadConfigMapData),
         registerCommand('extension.vsKubernetesDeleteFile', (explorerNode: ClusterExplorerConfigurationValueNode) => { deleteKubernetesConfigFile(kubectl, explorerNode, treeProvider); }),
         registerCommand('extension.vsKubernetesAddFile', (explorerNode: ConfigurationResourceNode) => { addKubernetesConfigFile(kubectl, explorerNode, treeProvider); }),
-        registerCommand('extension.vsKubernetesShowEvents', (explorerNode: ClusterExplorerResourceNodeItf) => { getEvents(kubectl, EventDisplayMode.Show, explorerNode); }),
-        registerCommand('extension.vsKubernetesFollowEvents', (explorerNode: ClusterExplorerResourceNodeItf) => { getEvents(kubectl, EventDisplayMode.Follow, explorerNode); }),
+        registerCommand('extension.vsKubernetesShowEvents', (explorerNode: ClusterExplorerResourceNode) => { getEvents(kubectl, EventDisplayMode.Show, explorerNode); }),
+        registerCommand('extension.vsKubernetesFollowEvents', (explorerNode: ClusterExplorerResourceNode) => { getEvents(kubectl, EventDisplayMode.Follow, explorerNode); }),
         registerCommand('extension.vsKubernetesCronJobRunNow', cronJobRunNow),
         registerCommand('kubernetes.portForwarding.showSessions', () => portForwardStatusBarManager.showSessions()),
         // Commands - Helm
@@ -722,7 +722,7 @@ function getTextForActiveWindow(callback: (data: string | null, file: vscode.Uri
     return;
 }
 
-function loadKubernetes(explorerNode?: ClusterExplorerResourceNodeItf) {
+function loadKubernetes(explorerNode?: ClusterExplorerResourceNode) {
     if (explorerNode) {
         loadKubernetesCore(explorerNode.namespace, explorerNode.kindName);
     } else {
@@ -763,7 +763,7 @@ function exposeKubernetes() {
 
 function getKubernetes(explorerNode?: any) {
     if (explorerNode) {
-        const resourceNode = explorerNode as ClusterExplorerResourceNodeItf;
+        const resourceNode = explorerNode as ClusterExplorerResourceNode;
         const kindName = resourceNode.kindName;
         const nsarg = resourceNode.namespace ? `--namespace ${resourceNode.namespace}` : '';
         kubectl.invokeInSharedTerminal(`get ${kindName} ${nsarg} -o wide`);
@@ -1201,7 +1201,7 @@ function getPorts() {
     }
 }
 
-async function describeKubernetes(explorerNode?: ClusterExplorerResourceNodeItf) {
+async function describeKubernetes(explorerNode?: ClusterExplorerResourceNode) {
     if (explorerNode) {
         const nsarg = explorerNode.namespace ? `--namespace ${explorerNode.namespace}` : '';
         const cmd = `describe ${explorerNode.kindName} ${nsarg}`;
@@ -1284,7 +1284,7 @@ function execKubernetes() {
     execKubernetesCore(false);
 }
 
-async function terminalKubernetes(explorerNode?: ClusterExplorerResourceNodeItf) {
+async function terminalKubernetes(explorerNode?: ClusterExplorerResourceNode) {
     if (explorerNode) {
         const namespace = explorerNode.namespace;
         const podSummary = { name: explorerNode.name, namespace: namespace || undefined };  // TODO: rationalise null and undefined
@@ -1389,7 +1389,7 @@ async function reportDeleteResult(resourceId: string, shellResult: ShellResult |
     refreshExplorer();
 }
 
-async function deleteKubernetes(delMode: KubernetesDeleteMode, explorerNode?: ClusterExplorerResourceNodeItf) {
+async function deleteKubernetes(delMode: KubernetesDeleteMode, explorerNode?: ClusterExplorerResourceNode) {
 
     const delModeArg = delMode ===  KubernetesDeleteMode.Now ? ' --now' : '';
 
@@ -1615,7 +1615,7 @@ const debugKubernetes = async () => {
     }
 };
 
-const debugAttachKubernetes = async (explorerNode: ClusterExplorerResourceNodeItf) => {
+const debugAttachKubernetes = async (explorerNode: ClusterExplorerResourceNode) => {
     const workspaceFolder = await showWorkspaceFolderPick();
     if (workspaceFolder) {
         new DebugSession(kubectl).attach(workspaceFolder, explorerNode ? explorerNode.name : undefined, explorerNode ? explorerNode.namespace || undefined : undefined);  // TODO: rationalise the nulls and undefineds
@@ -2103,7 +2103,7 @@ async function cronJobRunNow(target?: any): Promise<void> {
     vscode.window.showInformationMessage(`Created job ${jobName}`);  // TODO: consider adding button to open logs or something
 }
 
-async function resourceNameFromTarget(target: string | ClusterExplorerResourceNodeItf | undefined, pickPrompt: string): Promise<string | undefined> {
+async function resourceNameFromTarget(target: string | ClusterExplorerResourceNode | undefined, pickPrompt: string): Promise<string | undefined> {
     if (!target) {
         // TODO: consider if we have a suitable resource open
         const resourceKind = kuberesources.allKinds['cronjob'];

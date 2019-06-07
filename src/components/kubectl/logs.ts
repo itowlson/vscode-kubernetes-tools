@@ -7,7 +7,7 @@ import * as yaml from 'js-yaml';
 import * as kubectlUtils from '../../kubectlUtils';
 import { LogsPanel } from '../../components/logs/logsWebview';
 import { ContainerContainer } from '../../utils/containercontainer';
-import { ClusterExplorerResourceNodeItf } from '../clusterexplorer/node';
+import { ClusterExplorerResourceNode } from '../clusterexplorer/node';
 
 export enum LogsDisplayMode {
     Show,
@@ -20,7 +20,7 @@ export enum LogsDisplayMode {
  */
 export async function logsKubernetes(
     kubectl: Kubectl,
-    explorerNode: ClusterExplorerResourceNodeItf | undefined,
+    explorerNode: ClusterExplorerResourceNode | undefined,
     displayMode: LogsDisplayMode
 ) {
     if (explorerNode) {
@@ -35,7 +35,7 @@ export async function logsKubernetes(
  */
 async function getLogsForExplorerNode(
     kubectl: Kubectl,
-    explorerNode: ClusterExplorerResourceNodeItf,
+    explorerNode: ClusterExplorerResourceNode,
     displayMode: LogsDisplayMode
 ) {
     const resource = ContainerContainer.fromNode(explorerNode);
