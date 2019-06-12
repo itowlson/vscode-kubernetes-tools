@@ -5,6 +5,10 @@ import { ContextNode } from './node.context';
 import { FolderNode } from './node.folder';
 import { ContributedGroupingFolderNode } from './node.folder.grouping.custom';
 import { ResourceFolderNode } from './node.folder.resource';
+import { ResourceNode } from './node.resource';
+import { ResourceKindUIDescriptor, ResourceChildSource } from './resourceui';
+import { Kubectl } from '../../kubectl';
+import { GroupingFolderNode } from './node.folder.grouping';
 
 export abstract class NodeSourceImpl {
     at(parent: string | undefined): ExplorerExtender<ClusterExplorerNode> {
@@ -31,6 +35,58 @@ export class CustomGroupingFolderNodeSource extends NodeSourceImpl {
     }
     async nodes(): Promise<ClusterExplorerNode[]> {
         return [new ContributedGroupingFolderNode(this.displayName, this.contextValue, this.children)];
+    }
+}
+
+export class CustomResourceFolderOfNodeSource extends NodeSourceImpl {
+    constructor(private readonly resourceKind: kuberesources.ResourceKind, private readonly resources: () => any[]) {
+        super();
+    }
+    async nodes(): Promise<ClusterExplorerNode[]> {
+        return [GroupingFolderNode.of("TODO: do it", "TODO: TODO: TODO: no really you have to do this bit Ivan")];
+    }
+}
+
+export class CustomResourcesOfNodeSource extends NodeSourceImpl {
+    constructor(private readonly resourceKind: kuberesources.ResourceKind, private readonly resources: { name: string; extraInfo: any; }[], private readonly children: undefined | ((resource: { name: string; extraInfo: any; }) => NodeSourceImpl)) {
+        super();
+    }
+    async nodes(): Promise<ClusterExplorerNode[]> {
+        const childrenFunc = this.children;
+        const childSource: ResourceChildSource = {
+            children(_kubectl: Kubectl, parent: ResourceNode): Promise<ClusterExplorerNode[]> {
+                const extraInfo = parent.extraInfo ? parent.extraInfo.custom : undefined;
+                const ns = childrenFunc!({ name: parent.name, extraInfo: extraInfo});
+                return ns.nodes();
+            }
+        };
+        const childSources = this.children ? [childSource] : [];
+        const uiDescriptor: ResourceKindUIDescriptor = {
+            kind: this.resourceKind,
+            childSources: childSources
+        };
+        return this.resources.map((r) => ResourceNode.create(this.resourceKind, r.name, undefined, { custom: r.extraInfo }, uiDescriptor));
+    }
+}
+
+export class CustomResourceOfNodeSource extends NodeSourceImpl {
+    constructor(private readonly resourceKind: kuberesources.ResourceKind, private readonly resource: { name: string; extraInfo: any; }, private readonly children: undefined | (() => NodeSourceImpl)) {
+        super();
+    }
+    async nodes(): Promise<ClusterExplorerNode[]> {
+        const childrenFunc = this.children;
+        const childSource: ResourceChildSource = {
+            children(_kubectl: Kubectl, _parent: ResourceNode): Promise<ClusterExplorerNode[]> {
+                const ns = childrenFunc!();
+                return ns.nodes();
+            }
+        };
+        const childSources = this.children ? [childSource] : [];
+        const uiDescriptor: ResourceKindUIDescriptor = {
+            kind: this.resourceKind,
+            childSources: childSources
+        };
+        return [ResourceNode.create(this.resourceKind, this.resource.name, undefined, { custom: this.resource.extraInfo }, uiDescriptor)];
     }
 }
 

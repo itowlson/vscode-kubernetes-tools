@@ -5,7 +5,7 @@ import { ExplorerExtender, ExplorerUICustomizer } from "../../../components/clus
 import { KUBERNETES_EXPLORER_NODE_CATEGORY, KubernetesExplorer } from "../../../components/clusterexplorer/explorer";
 import { Kubectl } from "../../../kubectl";
 import { Host } from "../../../host";
-import { CustomResourceFolderNodeSource, CustomGroupingFolderNodeSource, NodeSourceImpl } from "../../../components/clusterexplorer/extension.nodesources";
+import { CustomResourceFolderNodeSource, CustomGroupingFolderNodeSource, NodeSourceImpl, CustomResourceOfNodeSource, CustomResourceFolderOfNodeSource, CustomResourcesOfNodeSource } from "../../../components/clusterexplorer/extension.nodesources";
 import { ClusterExplorerNode, ClusterExplorerResourceNode, ClusterExplorerCustomNode } from "../../../components/clusterexplorer/node";
 import { ResourceKind } from '../../../kuberesources';
 
@@ -41,7 +41,10 @@ class ClusterExplorerV1Impl implements ClusterExplorerV1 {
     get nodeSources(): ClusterExplorerV1.NodeSources {
         return {
             resourceFolder: resourceFolderContributor,
-            groupingFolder: groupingFolderContributor
+            groupingFolder: groupingFolderContributor,
+            resourceFolderOf: resourceFolderOfContributor,
+            resourcesOf: resourcesOfContributor,
+            resourceOf: resourceOfContributor,
         };
     }
 
@@ -139,6 +142,31 @@ function resourceFolderContributor(displayName: string, pluralDisplayName: strin
 function groupingFolderContributor(displayName: string, contextValue: string | undefined, ...children: ClusterExplorerV1.NodeSource[]): ClusterExplorerV1.NodeSource {
     const nodeSource = new CustomGroupingFolderNodeSource(displayName, contextValue, children.map(internalNodeSourceOf));
     return apiNodeSourceOf(nodeSource);
+}
+
+function resourceFolderOfContributor(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string, resources: () => ClusterExplorerV1.NodeSource[]): ClusterExplorerV1.NodeSource {
+    const nodeSource = new CustomResourceFolderOfNodeSource(new ResourceKind(displayName, pluralDisplayName, manifestKind, abbreviation), resources);
+    return apiNodeSourceOf(nodeSource);
+}
+
+function resourcesOfContributor(manifestKind: string, abbreviation: string, resources: { name: string; extraInfo: any; }[], children: undefined | ((resource: { name: string; extraInfo: any; }) => ClusterExplorerV1.NodeSource)): ClusterExplorerV1.NodeSource {
+    const childrenFunc = children ? (adaptReturnsNodeSourceToReturnsNodeSourceImplT(children)) : undefined;
+    const nodeSource = new CustomResourcesOfNodeSource(new ResourceKind(manifestKind, manifestKind, manifestKind, abbreviation), resources, childrenFunc);
+    return apiNodeSourceOf(nodeSource);
+}
+
+function resourceOfContributor(manifestKind: string, abbreviation: string, resource: { name: string; extraInfo: any; }, children: undefined | (() => ClusterExplorerV1.NodeSource)): ClusterExplorerV1.NodeSource {
+    const childrenFunc = children ? (adaptReturnsNodeSourceToReturnsNodeSourceImpl(children)) : undefined;
+    const nodeSource = new CustomResourceOfNodeSource(new ResourceKind(manifestKind, manifestKind, manifestKind, abbreviation), resource, childrenFunc);
+    return apiNodeSourceOf(nodeSource);
+}
+
+function adaptReturnsNodeSourceToReturnsNodeSourceImpl(f: () => ClusterExplorerV1.NodeSource): () => NodeSourceImpl {
+    return () => internalNodeSourceOf(f());
+}
+
+function adaptReturnsNodeSourceToReturnsNodeSourceImplT<T>(f: (t: T) => ClusterExplorerV1.NodeSource): (t: T) => NodeSourceImpl {
+    return (t) => internalNodeSourceOf(f(t));
 }
 
 const BUILT_IN_CONTRIBUTOR_KIND_TAG = 'nativeextender-4a4bc473-a8c6-4b1e-973f-22327f99cea8';

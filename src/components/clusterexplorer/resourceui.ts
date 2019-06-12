@@ -22,35 +22,33 @@ const specialKinds: ReadonlyArray<ResourceKindUIDescriptor> = [
     { kind: kuberesources.allKinds.statefulSet, lister: hasSelectorLister, childSources: [selectedPodsChildSource] },
 ];
 
-export function getLister(kind: kuberesources.ResourceKind): ResourceLister | undefined {
-    const descriptor = specialKinds.find((d) => d.kind.manifestKind === kind.manifestKind);
-    if (descriptor) {
-        return descriptor.lister;
-    }
-    return undefined;
+function defaultUIDescriptor(kind: kuberesources.ResourceKind): ResourceKindUIDescriptor {
+    return {
+        kind: kind
+    };
 }
 
-export function getChildSources(kind: kuberesources.ResourceKind): ReadonlyArray<ResourceChildSource> {
+export function kindUIDescriptor(kind: kuberesources.ResourceKind): ResourceKindUIDescriptor {
     const descriptor = specialKinds.find((d) => d.kind.manifestKind === kind.manifestKind);
     if (descriptor) {
-        return descriptor.childSources || [];
+        return descriptor;
     }
-    return [];
+    return defaultUIDescriptor(kind);
 }
 
-export function getUICustomiser(kind: kuberesources.ResourceKind): ResourceUICustomiser {
-    const descriptor = specialKinds.find((d) => d.kind.manifestKind === kind.manifestKind);
-    if (descriptor) {
-        return descriptor.uiCustomiser || NO_CUSTOMISER;
-    }
-    return NO_CUSTOMISER;
+export function getChildSources(descriptor: ResourceKindUIDescriptor): ReadonlyArray<ResourceChildSource> {
+    return descriptor.childSources || [];
+}
+
+export function getUICustomiser(descriptor: ResourceKindUIDescriptor): ResourceUICustomiser {
+    return descriptor.uiCustomiser || NO_CUSTOMISER;
 }
 
 const NO_CUSTOMISER = {
     customiseTreeItem(_resource: ResourceNode, _treeItem: vscode.TreeItem): void {}
 };
 
-interface ResourceKindUIDescriptor {
+export interface ResourceKindUIDescriptor {
     readonly kind: kuberesources.ResourceKind;
     readonly lister?: ResourceLister;
     readonly childSources?: ReadonlyArray<ResourceChildSource>;

@@ -75,13 +75,16 @@ import { linters } from './components/lint/linters';
 import { runClusterWizard } from './components/clusterprovider/clusterproviderserver';
 import { timestampText } from './utils/naming';
 import { ContainerContainer } from './utils/containercontainer';
-import { APIBroker } from './api/contract/api';
+import { APIBroker, API } from './api/contract/api';
 import { apiBroker } from './api/implementation/apibroker';
 import { sleep } from './sleep';
 import { CloudExplorer, CloudExplorerTreeNode } from './components/cloudexplorer/cloudexplorer';
 import { mergeToKubeconfig } from './components/kubectl/kubeconfig';
 import { PortForwardStatusBarManager } from './components/kubectl/port-forward-ui';
 import { ClusterExplorerNode, ClusterExplorerConfigurationValueNode, ClusterExplorerResourceNode, ClusterExplorerResourceFolderNode } from './components/clusterexplorer/node';
+import { ClusterExplorerV1 } from './api/contract/cluster-explorer/v1';
+
+let API_BEAST: APIBroker | null = null;
 
 let explainActive = false;
 let swaggerSpecPromise: Promise<explainer.SwaggerModel | undefined> | null = null;
@@ -378,7 +381,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<APIBro
     await registerYamlSchemaSupport();
 
     vscode.workspace.registerTextDocumentContentProvider(configmaps.uriScheme, configMapProvider);
-    return apiBroker(clusterProviderRegistry, kubectl, portForwardStatusBarManager, treeProvider, cloudExplorer);
+    API_BEAST = apiBroker(clusterProviderRegistry, kubectl, portForwardStatusBarManager, treeProvider, cloudExplorer);
+    return API_BEAST;
 }
 
 // this method is called when your extension is deactivated
@@ -774,9 +778,22 @@ function getKubernetes(explorerNode?: any) {
         const nsarg = (node.nodeType === 'resource' && node.namespace) ? `--namespace ${node.namespace}` : '';
         kubectl.invokeInSharedTerminal(`get ${id} ${nsarg} -o wide`);
     } else {
-        findKindNameOrPrompt(kuberesources.commonKinds, 'get', { nameOptional: true }, (value) => {
-            kubectl.invokeInSharedTerminal(` get ${value} -o wide`);
-        });
+        // findKindNameOrPrompt(kuberesources.commonKinds, 'get', { nameOptional: true }, (value) => {
+        //     kubectl.invokeInSharedTerminal(` get ${value} -o wide`);
+        // });
+        if (API_BEAST) {
+            const e = API_BEAST.get('clusterexplorer', 'v1') as API<ClusterExplorerV1>;
+            if (e.available) {
+                const ce = e.api;
+                ce.registerNodeContributor(
+                    ce.nodeSources.groupingFolder("Arses", undefined,
+                        ce.nodeSources.resourcesOf("ClusterRole", "clusterrole", [{ name: "admin", extraInfo: undefined }, { name: "edit", extraInfo: undefined }], (r) => ce.nodeSources.resourceFolder("pod", "ALL THE PODS UNDER " + r.name, "Pod", "pod")),
+                        ce.nodeSources.resourceFolder("CR", "CRs", "ClusterRole", "clusterrole"),
+                        ce.nodeSources.resourceFolder("CRB", "CRBs", "ClusterRoleBinding", "clusterrolebinding"),
+                    ).at("Workloads")
+                );
+            }
+        }
     }
 }
 

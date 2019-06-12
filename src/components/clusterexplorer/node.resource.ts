@@ -7,17 +7,18 @@ import * as kuberesources from '../../kuberesources';
 import { ObjectMeta } from '../../kuberesources.objectmodel';
 import { kubefsUri } from '../../kuberesources.virtualfs';
 import { ClusterExplorerNode, ClusterExplorerNodeImpl, ClusterExplorerResourceNode } from './node';
-import { getChildSources, getUICustomiser } from './resourceui';
+import { getChildSources, getUICustomiser, ResourceKindUIDescriptor, kindUIDescriptor } from './resourceui';
 
 export class ResourceNode extends ClusterExplorerNodeImpl implements ClusterExplorerResourceNode {
 
-    static create(kind: kuberesources.ResourceKind, name: string, metadata: ObjectMeta | undefined, extraInfo: ResourceExtraInfo | undefined): ClusterExplorerResourceNode {
-        return new ResourceNode(kind, name, metadata, extraInfo);
+    static create(kind: kuberesources.ResourceKind, name: string, metadata: ObjectMeta | undefined, extraInfo: ResourceExtraInfo | undefined, uiDescriptor?: ResourceKindUIDescriptor): ClusterExplorerResourceNode {
+        const actualUIDescriptor = uiDescriptor || kindUIDescriptor(kind);
+        return new ResourceNode(kind, name, metadata, extraInfo, actualUIDescriptor);
     }
 
     readonly kindName: string;
     readonly nodeType = 'resource';
-    constructor(readonly kind: kuberesources.ResourceKind, readonly name: string, readonly metadata: ObjectMeta | undefined, readonly extraInfo: ResourceExtraInfo | undefined) {
+    constructor(readonly kind: kuberesources.ResourceKind, readonly name: string, readonly metadata: ObjectMeta | undefined, readonly extraInfo: ResourceExtraInfo | undefined, private readonly uiDescriptor: ResourceKindUIDescriptor) {
         super("resource");
         this.kindName = `${kind.abbreviation}/${name}`;
     }
@@ -28,7 +29,7 @@ export class ResourceNode extends ClusterExplorerNodeImpl implements ClusterExpl
         return kubefsUri(this.namespace, this.kindName, outputFormat);
     }
     async getChildren(kubectl: Kubectl, _host: Host): Promise<ClusterExplorerNode[]> {
-        const childSources = getChildSources(this.kind);
+        const childSources = getChildSources(this.uiDescriptor);
         const children = Array.of<ClusterExplorerNode>();
         for (const source of childSources) {
             const sourcedChildren = await source.children(kubectl, this);
@@ -48,12 +49,12 @@ export class ResourceNode extends ClusterExplorerNodeImpl implements ClusterExpl
         if (this.namespace) {
             treeItem.tooltip = `Namespace: ${this.namespace}`; // TODO: show only if in non-current namespace?
         }
-        const uiCustomiser = getUICustomiser(this.kind);
+        const uiCustomiser = getUICustomiser(this.uiDescriptor);
         uiCustomiser.customiseTreeItem(this, treeItem);
         return treeItem;
     }
     get isExpandable(): boolean {
-        return getChildSources(this.kind).length > 0;
+        return getChildSources(this.uiDescriptor).length > 0;
     }
 }
 
@@ -62,4 +63,5 @@ export interface ResourceExtraInfo {
     readonly podInfo?: kubectlUtils.PodInfo;
     readonly labelSelector?: any;
     readonly namespaceInfo?: kubectlUtils.NamespaceInfo;
+    readonly custom?: any;
 }

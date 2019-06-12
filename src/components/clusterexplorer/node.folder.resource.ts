@@ -6,20 +6,21 @@ import { ClusterExplorerNode, ClusterExplorerResourceFolderNode } from './node';
 import { MessageNode } from './node.message';
 import { FolderNode } from './node.folder';
 import { ResourceNode } from './node.resource';
-import { getLister } from './resourceui';
+import { ResourceKindUIDescriptor, kindUIDescriptor } from './resourceui';
 
 export class ResourceFolderNode extends FolderNode implements ClusterExplorerResourceFolderNode {
 
-    static create(kind: kuberesources.ResourceKind): ResourceFolderNode {
-        return new ResourceFolderNode(kind);
+    static create(kind: kuberesources.ResourceKind, uiDescriptor?: ResourceKindUIDescriptor): ResourceFolderNode {
+        const actualUIDescriptor = uiDescriptor || kindUIDescriptor(kind);
+        return new ResourceFolderNode(kind, actualUIDescriptor);
     }
 
-    constructor(readonly kind: kuberesources.ResourceKind) {
+    constructor(readonly kind: kuberesources.ResourceKind, private readonly uiDescriptor: ResourceKindUIDescriptor) {
         super("folder.resource", kind.abbreviation, kind.pluralDisplayName, "vsKubernetes.kind");
     }
     readonly nodeType = 'folder.resource';
     async getChildren(kubectl: Kubectl, host: Host): Promise<ClusterExplorerNode[]> {
-        const lister = getLister(this.kind);
+        const lister = this.uiDescriptor.lister;
         if (lister) {
             return await lister.list(kubectl, this.kind);
         }
