@@ -83,6 +83,7 @@ import { mergeToKubeconfig } from './components/kubectl/kubeconfig';
 import { PortForwardStatusBarManager } from './components/kubectl/port-forward-ui';
 import { ClusterExplorerNode, ClusterExplorerConfigurationValueNode, ClusterExplorerResourceNode, ClusterExplorerResourceFolderNode } from './components/clusterexplorer/node';
 import { ClusterExplorerV1 } from './api/contract/cluster-explorer/v1';
+import { KubectlV1 } from './api/contract/kubectl/v1';
 
 let API_BEAST: APIBroker | null = null;
 
@@ -783,11 +784,23 @@ function getKubernetes(explorerNode?: any) {
         // });
         if (API_BEAST) {
             const e = API_BEAST.get('clusterexplorer', 'v1') as API<ClusterExplorerV1>;
-            if (e.available) {
+            const k = API_BEAST.get('kubectl', 'v1') as API<KubectlV1>;
+            if (e.available && k.available) {
                 const ce = e.api;
+                const kc = k.api;
                 ce.registerNodeContributor(
                     ce.nodeSources.resourceFolderOf("CR", "CRs", "ClusterRole", "clusterrole", () => [
-                        ce.nodeSources.resourcesOf("ClusterRole", "clusterrole", { resources: 'all' }, undefined)
+                        ce.nodeSources.resourcesOf("ClusterRole", "clusterrole", { resources: 'all' }, (r) =>
+                            ce.nodeSources.resourcesOf("Pod", "pod", { resources: 'cb', list: async () => {
+                                const sr = await kc.invokeCommand('get pod -o json');
+                                if (!sr || sr.code !== 0) {
+                                    return [];
+                                }
+                                const pods = JSON.parse(sr.stdout);
+                                const podsums = pods.items.filter((p: any) => p.metadata.name.startsWith(r.name[0])).map((p: any) => ({name: p.metadata.name, extraInfo: undefined}));
+                                return podsums;
+                            } }, undefined)
+                        )
                     ]
                     ).at("Workloads")
                 );

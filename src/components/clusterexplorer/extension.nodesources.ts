@@ -1,6 +1,6 @@
 import * as kuberesources from '../../kuberesources';
 import { ExplorerExtender } from './explorer.extension';
-import { ClusterExplorerNode } from './node';
+import { ClusterExplorerNode, ClusterExplorerResourceNode } from './node';
 import { ContextNode } from './node.context';
 import { FolderNode } from './node.folder';
 import { ContributedGroupingFolderNode } from './node.folder.grouping.custom';
@@ -77,7 +77,10 @@ interface RSL {
 }
 
 export class CustomResourcesOfNodeSource extends NodeSourceImpl {
-    constructor(private readonly kubectl: Kubectl, private readonly host: Host, private readonly resourceKind: kuberesources.ResourceKind, private readonly resources: RSA | RSCB | RSL, private readonly children: undefined | ((resource: { name: string; extraInfo: any; }) => NodeSourceImpl)) {
+    constructor(private readonly kubectl: Kubectl, private readonly host: Host,
+        private readonly resourceKind: kuberesources.ResourceKind,
+        private readonly resources: RSA | RSCB | RSL,
+        private readonly children: undefined | ((resource: { name: string; extraInfo: any; }) => NodeSourceImpl)) {
         super();
     }
     async nodes(): Promise<ClusterExplorerNode[]> {
@@ -96,7 +99,10 @@ export class CustomResourcesOfNodeSource extends NodeSourceImpl {
         };
         switch (this.resources.resources) {
             case 'all':
-                return ResourceFolderNode.create(this.resourceKind, uiDescriptor).getChildren(this.kubectl, this.host);
+                const resourceInfos = await ResourceFolderNode.create(this.resourceKind, uiDescriptor).getChildren(this.kubectl, this.host);
+                return resourceInfos.filter((ri) => ri.nodeType === 'resource')
+                                    .map((ri) => ri as ClusterExplorerResourceNode)
+                                    .map((ri) => ResourceNode.create(ri.kind, ri.name, ri.metadata, undefined, uiDescriptor));
             case 'cb':
                 return (await this.resources.list()).map((r) => ResourceNode.create(this.resourceKind, r.name, undefined, { custom: r.extraInfo }, uiDescriptor));
             case 'list':
