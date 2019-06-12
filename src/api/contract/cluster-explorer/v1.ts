@@ -103,6 +103,7 @@ export namespace ClusterExplorerV1 {
     export interface NodeSources {
         resourceFolder(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string): NodeSource;
         groupingFolder(displayName: string, contextValue: string | undefined, ...children: NodeSource[]): NodeSource;
+        // TODO: follow the groupingFolder pattern wrt children?
         resourceFolderOf(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string, resources: () => NodeSource[]): NodeSource;
         resourcesOf(manifestKind: string, abbreviation: string, resources: { name: string; extraInfo: any; }[], children: undefined | ((resource: { name: string; extraInfo: any; }) => NodeSource)): NodeSource;
         resourceOf(manifestKind: string, abbreviation: string, resource: { name: string; extraInfo: any; }, children: undefined | (() => NodeSource)): NodeSource;

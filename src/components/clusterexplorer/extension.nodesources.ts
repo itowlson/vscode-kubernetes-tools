@@ -6,9 +6,9 @@ import { FolderNode } from './node.folder';
 import { ContributedGroupingFolderNode } from './node.folder.grouping.custom';
 import { ResourceFolderNode } from './node.folder.resource';
 import { ResourceNode } from './node.resource';
-import { ResourceKindUIDescriptor, ResourceChildSource } from './resourceui';
+import { ResourceKindUIDescriptor, ResourceChildSource, ResourceLister } from './resourceui';
 import { Kubectl } from '../../kubectl';
-import { GroupingFolderNode } from './node.folder.grouping';
+import { flatten } from '../../utils/array';
 
 export abstract class NodeSourceImpl {
     at(parent: string | undefined): ExplorerExtender<ClusterExplorerNode> {
@@ -39,11 +39,24 @@ export class CustomGroupingFolderNodeSource extends NodeSourceImpl {
 }
 
 export class CustomResourceFolderOfNodeSource extends NodeSourceImpl {
-    constructor(private readonly resourceKind: kuberesources.ResourceKind, private readonly resources: () => any[]) {
+    constructor(private readonly resourceKind: kuberesources.ResourceKind, private readonly resources: () => NodeSourceImpl[]) {
         super();
     }
     async nodes(): Promise<ClusterExplorerNode[]> {
-        return [GroupingFolderNode.of("TODO: do it", "TODO: TODO: TODO: no really you have to do this bit Ivan")];
+        const resourcesFunc = this.resources;
+        const lister: ResourceLister = {
+            async list(_kubectl: Kubectl, _kind: kuberesources.ResourceKind): Promise<ClusterExplorerNode[]> {
+                const nss = resourcesFunc();
+                const nps = nss.map((ns) => ns.nodes());
+                const narrs = await Promise.all(nps);
+                return flatten(...narrs);
+            }
+        };
+        const uiDescriptor = {
+            kind: this.resourceKind,
+            lister: lister,
+        };
+        return [ResourceFolderNode.create(this.resourceKind, uiDescriptor)];
     }
 }
 

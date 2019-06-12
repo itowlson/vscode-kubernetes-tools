@@ -145,7 +145,8 @@ function groupingFolderContributor(displayName: string, contextValue: string | u
 }
 
 function resourceFolderOfContributor(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string, resources: () => ClusterExplorerV1.NodeSource[]): ClusterExplorerV1.NodeSource {
-    const nodeSource = new CustomResourceFolderOfNodeSource(new ResourceKind(displayName, pluralDisplayName, manifestKind, abbreviation), resources);
+    const resourcesFunc = adaptReturnsNodeSourceArrayToReturnsNodeSourceImplArray(resources);
+    const nodeSource = new CustomResourceFolderOfNodeSource(new ResourceKind(displayName, pluralDisplayName, manifestKind, abbreviation), resourcesFunc);
     return apiNodeSourceOf(nodeSource);
 }
 
@@ -167,6 +168,10 @@ function adaptReturnsNodeSourceToReturnsNodeSourceImpl(f: () => ClusterExplorerV
 
 function adaptReturnsNodeSourceToReturnsNodeSourceImplT<T>(f: (t: T) => ClusterExplorerV1.NodeSource): (t: T) => NodeSourceImpl {
     return (t) => internalNodeSourceOf(f(t));
+}
+
+function adaptReturnsNodeSourceArrayToReturnsNodeSourceImplArray(f: () => ClusterExplorerV1.NodeSource[]): () => NodeSourceImpl[] {
+    return () => f().map(internalNodeSourceOf);
 }
 
 const BUILT_IN_CONTRIBUTOR_KIND_TAG = 'nativeextender-4a4bc473-a8c6-4b1e-973f-22327f99cea8';

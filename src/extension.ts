@@ -788,6 +788,10 @@ function getKubernetes(explorerNode?: any) {
                 ce.registerNodeContributor(
                     ce.nodeSources.groupingFolder("Arses", undefined,
                         ce.nodeSources.resourcesOf("ClusterRole", "clusterrole", [{ name: "admin", extraInfo: undefined }, { name: "edit", extraInfo: undefined }], (r) => ce.nodeSources.resourceFolder("pod", "ALL THE PODS UNDER " + r.name, "Pod", "pod")),
+                        ce.nodeSources.resourceFolderOf("CR filt", "CR filtz", "ClusterRole", "clusterrole", () => [
+                            ce.nodeSources.resourceOf('ClusterRole', 'clusterrole', { name: 'admin', extraInfo: undefined }, undefined),
+                            ce.nodeSources.resourceOf('ClusterRole', 'clusterrole', { name: 'edit', extraInfo: undefined }, undefined),
+                        ]),
                         ce.nodeSources.resourceFolder("CR", "CRs", "ClusterRole", "clusterrole"),
                         ce.nodeSources.resourceFolder("CRB", "CRBs", "ClusterRoleBinding", "clusterrolebinding"),
                     ).at("Workloads")
