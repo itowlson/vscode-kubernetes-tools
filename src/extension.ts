@@ -81,7 +81,7 @@ import { sleep } from './sleep';
 import { CloudExplorer, CloudExplorerTreeNode } from './components/cloudexplorer/cloudexplorer';
 import { mergeToKubeconfig } from './components/kubectl/kubeconfig';
 import { PortForwardStatusBarManager } from './components/kubectl/port-forward-ui';
-import { ClusterExplorerNode, ClusterExplorerConfigurationValueNode, ClusterExplorerResourceNode } from './components/clusterexplorer/node';
+import { ClusterExplorerNode, ClusterExplorerConfigurationValueNode, ClusterExplorerResourceNode, ClusterExplorerResourceFolderNode } from './components/clusterexplorer/node';
 
 let explainActive = false;
 let swaggerSpecPromise: Promise<explainer.SwaggerModel | undefined> | null = null;
@@ -760,12 +760,19 @@ function exposeKubernetes() {
     });
 }
 
+function kubectlId(explorerNode: ClusterExplorerResourceNode | ClusterExplorerResourceFolderNode) {
+    if (explorerNode.nodeType === 'resource') {
+        return explorerNode.kindName;
+    }
+    return explorerNode.kind.abbreviation;
+}
+
 function getKubernetes(explorerNode?: any) {
     if (explorerNode) {
-        const resourceNode = explorerNode as ClusterExplorerResourceNode;
-        const kindName = resourceNode.kindName;
-        const nsarg = resourceNode.namespace ? `--namespace ${resourceNode.namespace}` : '';
-        kubectl.invokeInSharedTerminal(`get ${kindName} ${nsarg} -o wide`);
+        const node = explorerNode as ClusterExplorerResourceNode | ClusterExplorerResourceFolderNode;
+        const id = kubectlId(node);
+        const nsarg = (node.nodeType === 'resource' && node.namespace) ? `--namespace ${node.namespace}` : '';
+        kubectl.invokeInSharedTerminal(`get ${id} ${nsarg} -o wide`);
     } else {
         findKindNameOrPrompt(kuberesources.commonKinds, 'get', { nameOptional: true }, (value) => {
             kubectl.invokeInSharedTerminal(` get ${value} -o wide`);
