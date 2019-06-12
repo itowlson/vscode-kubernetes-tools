@@ -38,7 +38,7 @@ export class KubernetesExplorer implements vscode.TreeDataProvider<ClusterExplor
     private readonly extenders = Array.of<ExplorerExtender<ClusterExplorerNode>>();
     private readonly customisers = Array.of<ExplorerUICustomizer<ClusterExplorerNode>>();
 
-    constructor(private readonly kubectl: Kubectl, private readonly host: Host) {
+    constructor(readonly kubectl: Kubectl, readonly host: Host) {
         host.onDidChangeConfiguration((change) => {
             if (affectsUs(change)) {
                 this.refresh();

@@ -9,6 +9,8 @@ import { ResourceNode } from './node.resource';
 import { ResourceKindUIDescriptor, ResourceChildSource, ResourceLister } from './resourceui';
 import { Kubectl } from '../../kubectl';
 import { flatten } from '../../utils/array';
+import { cantHappen } from '../../utils/never';
+import { Host } from '../../host';
 
 export abstract class NodeSourceImpl {
     at(parent: string | undefined): ExplorerExtender<ClusterExplorerNode> {
@@ -60,8 +62,22 @@ export class CustomResourceFolderOfNodeSource extends NodeSourceImpl {
     }
 }
 
+interface RSA {
+    readonly resources: 'all';
+}
+
+interface RSCB {
+    readonly resources: 'cb';
+    list(): Promise<ReadonlyArray<{ name: string, extraInfo?: any }>>;
+}
+
+interface RSL {
+    readonly resources: 'list';
+    list: ReadonlyArray<{ name: string, extraInfo?: any }>;
+}
+
 export class CustomResourcesOfNodeSource extends NodeSourceImpl {
-    constructor(private readonly resourceKind: kuberesources.ResourceKind, private readonly resources: { name: string; extraInfo: any; }[], private readonly children: undefined | ((resource: { name: string; extraInfo: any; }) => NodeSourceImpl)) {
+    constructor(private readonly kubectl: Kubectl, private readonly host: Host, private readonly resourceKind: kuberesources.ResourceKind, private readonly resources: RSA | RSCB | RSL, private readonly children: undefined | ((resource: { name: string; extraInfo: any; }) => NodeSourceImpl)) {
         super();
     }
     async nodes(): Promise<ClusterExplorerNode[]> {
@@ -78,7 +94,16 @@ export class CustomResourcesOfNodeSource extends NodeSourceImpl {
             kind: this.resourceKind,
             childSources: childSources
         };
-        return this.resources.map((r) => ResourceNode.create(this.resourceKind, r.name, undefined, { custom: r.extraInfo }, uiDescriptor));
+        switch (this.resources.resources) {
+            case 'all':
+                return ResourceFolderNode.create(this.resourceKind, uiDescriptor).getChildren(this.kubectl, this.host);
+            case 'cb':
+                return (await this.resources.list()).map((r) => ResourceNode.create(this.resourceKind, r.name, undefined, { custom: r.extraInfo }, uiDescriptor));
+            case 'list':
+                return this.resources.list.map((r) => ResourceNode.create(this.resourceKind, r.name, undefined, { custom: r.extraInfo }, uiDescriptor));
+            default:
+                return cantHappen(this.resources);
+        }
     }
 }
 

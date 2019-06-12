@@ -40,16 +40,44 @@ class ClusterExplorerV1Impl implements ClusterExplorerV1 {
 
     get nodeSources(): ClusterExplorerV1.NodeSources {
         return {
-            resourceFolder: resourceFolderContributor,
-            groupingFolder: groupingFolderContributor,
-            resourceFolderOf: resourceFolderOfContributor,
-            resourcesOf: resourcesOfContributor,
-            resourceOf: resourceOfContributor,
+            resourceFolder: this.resourceFolderContributor.bind(this),
+            groupingFolder: this.groupingFolderContributor.bind(this),
+            resourceFolderOf: this.resourceFolderOfContributor.bind(this),
+            resourcesOf: this.resourcesOfContributor.bind(this),
+            resourceOf: this.resourceOfContributor.bind(this),
         };
     }
 
     refresh(): void {
         this.explorer.refresh();
+    }
+
+    private resourceFolderContributor(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string): ClusterExplorerV1.NodeSource {
+        const nodeSource = new CustomResourceFolderNodeSource(new ResourceKind(displayName, pluralDisplayName, manifestKind, abbreviation));
+        return apiNodeSourceOf(nodeSource);
+    }
+
+    private groupingFolderContributor(displayName: string, contextValue: string | undefined, ...children: ClusterExplorerV1.NodeSource[]): ClusterExplorerV1.NodeSource {
+        const nodeSource = new CustomGroupingFolderNodeSource(displayName, contextValue, children.map(internalNodeSourceOf));
+        return apiNodeSourceOf(nodeSource);
+    }
+
+    private resourceFolderOfContributor(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string, resources: () => ClusterExplorerV1.NodeSource[]): ClusterExplorerV1.NodeSource {
+        const resourcesFunc = adaptReturnsNodeSourceArrayToReturnsNodeSourceImplArray(resources);
+        const nodeSource = new CustomResourceFolderOfNodeSource(new ResourceKind(displayName, pluralDisplayName, manifestKind, abbreviation), resourcesFunc);
+        return apiNodeSourceOf(nodeSource);
+    }
+
+    private resourcesOfContributor(manifestKind: string, abbreviation: string, resources: ClusterExplorerV1.ResourcesSpec, children: undefined | ((resource: { name: string; extraInfo: any; }) => ClusterExplorerV1.NodeSource)): ClusterExplorerV1.NodeSource {
+        const childrenFunc = children ? (adaptReturnsNodeSourceToReturnsNodeSourceImplT(children)) : undefined;
+        const nodeSource = new CustomResourcesOfNodeSource(this.explorer.kubectl, this.explorer.host, new ResourceKind(manifestKind, manifestKind, manifestKind, abbreviation), resources, childrenFunc);
+        return apiNodeSourceOf(nodeSource);
+    }
+
+    private resourceOfContributor(manifestKind: string, abbreviation: string, resource: { name: string; extraInfo: any; }, children: undefined | (() => ClusterExplorerV1.NodeSource)): ClusterExplorerV1.NodeSource {
+        const childrenFunc = children ? (adaptReturnsNodeSourceToReturnsNodeSourceImpl(children)) : undefined;
+        const nodeSource = new CustomResourceOfNodeSource(new ResourceKind(manifestKind, manifestKind, manifestKind, abbreviation), resource, childrenFunc);
+        return apiNodeSourceOf(nodeSource);
     }
 }
 
@@ -132,34 +160,6 @@ export class ContributedNode implements ClusterExplorerCustomNode {
     getTreeItem(): vscode.TreeItem {
         return this.impl.getTreeItem();
     }
-}
-
-function resourceFolderContributor(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string): ClusterExplorerV1.NodeSource {
-    const nodeSource = new CustomResourceFolderNodeSource(new ResourceKind(displayName, pluralDisplayName, manifestKind, abbreviation));
-    return apiNodeSourceOf(nodeSource);
-}
-
-function groupingFolderContributor(displayName: string, contextValue: string | undefined, ...children: ClusterExplorerV1.NodeSource[]): ClusterExplorerV1.NodeSource {
-    const nodeSource = new CustomGroupingFolderNodeSource(displayName, contextValue, children.map(internalNodeSourceOf));
-    return apiNodeSourceOf(nodeSource);
-}
-
-function resourceFolderOfContributor(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string, resources: () => ClusterExplorerV1.NodeSource[]): ClusterExplorerV1.NodeSource {
-    const resourcesFunc = adaptReturnsNodeSourceArrayToReturnsNodeSourceImplArray(resources);
-    const nodeSource = new CustomResourceFolderOfNodeSource(new ResourceKind(displayName, pluralDisplayName, manifestKind, abbreviation), resourcesFunc);
-    return apiNodeSourceOf(nodeSource);
-}
-
-function resourcesOfContributor(manifestKind: string, abbreviation: string, resources: { name: string; extraInfo: any; }[], children: undefined | ((resource: { name: string; extraInfo: any; }) => ClusterExplorerV1.NodeSource)): ClusterExplorerV1.NodeSource {
-    const childrenFunc = children ? (adaptReturnsNodeSourceToReturnsNodeSourceImplT(children)) : undefined;
-    const nodeSource = new CustomResourcesOfNodeSource(new ResourceKind(manifestKind, manifestKind, manifestKind, abbreviation), resources, childrenFunc);
-    return apiNodeSourceOf(nodeSource);
-}
-
-function resourceOfContributor(manifestKind: string, abbreviation: string, resource: { name: string; extraInfo: any; }, children: undefined | (() => ClusterExplorerV1.NodeSource)): ClusterExplorerV1.NodeSource {
-    const childrenFunc = children ? (adaptReturnsNodeSourceToReturnsNodeSourceImpl(children)) : undefined;
-    const nodeSource = new CustomResourceOfNodeSource(new ResourceKind(manifestKind, manifestKind, manifestKind, abbreviation), resource, childrenFunc);
-    return apiNodeSourceOf(nodeSource);
 }
 
 function adaptReturnsNodeSourceToReturnsNodeSourceImpl(f: () => ClusterExplorerV1.NodeSource): () => NodeSourceImpl {

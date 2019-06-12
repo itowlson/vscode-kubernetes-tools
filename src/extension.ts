@@ -786,8 +786,14 @@ function getKubernetes(explorerNode?: any) {
             if (e.available) {
                 const ce = e.api;
                 ce.registerNodeContributor(
+                    ce.nodeSources.resourceFolderOf("CR", "CRs", "ClusterRole", "clusterrole", () => [
+                        ce.nodeSources.resourcesOf("ClusterRole", "clusterrole", { resources: 'all' }, undefined)
+                    ]
+                    ).at("Workloads")
+                );
+                ce.registerNodeContributor(
                     ce.nodeSources.groupingFolder("Arses", undefined,
-                        ce.nodeSources.resourcesOf("ClusterRole", "clusterrole", [{ name: "admin", extraInfo: undefined }, { name: "edit", extraInfo: undefined }], (r) => ce.nodeSources.resourceFolder("pod", "ALL THE PODS UNDER " + r.name, "Pod", "pod")),
+                        ce.nodeSources.resourcesOf("ClusterRole", "clusterrole", { resources: 'list', list: [{ name: "admin", extraInfo: undefined }, { name: "edit", extraInfo: undefined }] }, (r) => ce.nodeSources.resourceFolder("pod", "ALL THE PODS UNDER " + r.name, "Pod", "pod")),
                         ce.nodeSources.resourceFolderOf("CR filt", "CR filtz", "ClusterRole", "clusterrole", () => [
                             ce.nodeSources.resourceOf('ClusterRole', 'clusterrole', { name: 'admin', extraInfo: undefined }, undefined),
                             ce.nodeSources.resourceOf('ClusterRole', 'clusterrole', { name: 'edit', extraInfo: undefined }, undefined),
