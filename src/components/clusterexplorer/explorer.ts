@@ -10,6 +10,7 @@ import { sleep } from '../../sleep';
 import { refreshExplorer } from '../clusterprovider/common/explorer';
 import { ClusterExplorerNode, ClusterExplorerResourceNode } from './node';
 import { MiniKubeContextNode, ContextNode } from './node.context';
+import { ResourceKindUIDescriptor } from './resourceui';
 
 export const KUBERNETES_EXPLORER_NODE_CATEGORY = 'kubernetes-explorer-node';
 
@@ -22,6 +23,8 @@ export type KubernetesExplorerNodeType =
     'configitem' |
     'helm.release' |
     'extension';
+
+export const HACKETY_HACK_kindUIDescriptors = Array.of<ResourceKindUIDescriptor>();
 
 export function create(kubectl: Kubectl, host: Host): KubernetesExplorer {
     return new KubernetesExplorer(kubectl, host);
@@ -106,6 +109,11 @@ export class KubernetesExplorer implements vscode.TreeDataProvider<ClusterExplor
 
     registerUICustomiser(customiser: ExplorerUICustomizer<ClusterExplorerNode>): void {
         this.customisers.push(customiser);
+        sleep(50).then(() => refreshExplorer());
+    }
+
+    registerKind(kindUIDescriptor: ResourceKindUIDescriptor): void {
+        HACKETY_HACK_kindUIDescriptors.push(kindUIDescriptor);
         sleep(50).then(() => refreshExplorer());
     }
 

@@ -6,6 +6,7 @@ import { KubernetesExplorerNodeType, KUBERNETES_EXPLORER_NODE_CATEGORY } from '.
 import { KubectlContext } from '../../kubectlUtils';
 import { ResourceKind } from '../../kuberesources';
 import { ObjectMeta } from '../../kuberesources.objectmodel';
+import { ResourceExtraInfo } from './node.resource';
 
 export interface ClusterExplorerNodeBase {
     readonly nodeCategory: 'kubernetes-explorer-node';
@@ -42,6 +43,7 @@ export interface ClusterExplorerResourceNode extends ClusterExplorerNodeBase {
     readonly kindName: string;
     readonly metadata: ObjectMeta | undefined;
     readonly kind: ResourceKind;
+    readonly extraInfo: ResourceExtraInfo | undefined;
     uri(outputFormat: string): vscode.Uri;
 }
 

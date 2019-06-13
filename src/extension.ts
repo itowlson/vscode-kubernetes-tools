@@ -788,33 +788,68 @@ function getKubernetes(explorerNode?: any) {
             if (e.available && k.available) {
                 const ce = e.api;
                 const kc = k.api;
-                ce.registerNodeContributor(
-                    ce.nodeSources.resourceFolderOf("CR", "CRs", "ClusterRole", "clusterrole", () => [
-                        ce.nodeSources.resourcesOf("ClusterRole", "clusterrole", { resources: 'all' }, (r) =>
-                            ce.nodeSources.resourcesOf("Pod", "pod", { resources: 'cb', list: async () => {
-                                const sr = await kc.invokeCommand('get pod -o json');
-                                if (!sr || sr.code !== 0) {
-                                    return [];
-                                }
-                                const pods = JSON.parse(sr.stdout);
-                                const podsums = pods.items.filter((p: any) => p.metadata.name.startsWith(r.name[0])).map((p: any) => ({name: p.metadata.name, extraInfo: undefined}));
-                                return podsums;
-                            } }, undefined)
-                        )
-                    ]
-                    ).at("Workloads")
-                );
+                ce.registerKind("ClusterRole", "clusterrole", {
+                    // children(r: ClusterExplorerV1.ResourceSummary): ClusterExplorerV1.NodeSource[] {
+                    //     return [ce.nodeSources.resourcesOf('Pod', 'pod', {
+                    //         resources: 'cb',
+                    //         async list() {
+                    //             const sr = await kc.invokeCommand('get pod -o json');
+                    //             if (!sr || sr.code !== 0) {
+                    //                 return [];
+                    //             }
+                    //             const pods = JSON.parse(sr.stdout);
+                    //             const podsums = pods.items.filter((p: any) => p.metadata.name.startsWith(r.name[0])).map((p: any) => ({name: p.metadata.name, extraInfo: undefined}));
+                    //             return podsums;
+                    //         }
+                    //     }, undefined)];
+                    // }
+                    children(r: ClusterExplorerV1.ResourceSummary): ClusterExplorerV1.NodeSource[] {
+                        const podsStartingWithRightLetter = ce.nodeSources.resourcesOf('Pod', 'pod', {resources: 'all'}, undefined)
+                                                                          .filter((n) => n.nodeType === 'resource' && n.name.startsWith(r.name[0]));
+                        return [podsStartingWithRightLetter];
+                    }
+                });
+
+                // ce.registerNodeContributor(
+                //     ce.nodeSources.resourceFolderOf("CR", "CRs", "ClusterRole", "clusterrole", () => [
+                //         ce.nodeSources.resourcesOf("ClusterRole", "clusterrole", { resources: 'all' }, (r) =>
+                //             ce.nodeSources.resourcesOf("Pod", "pod", { resources: 'cb', list: async () => {
+                //                 const sr = await kc.invokeCommand('get pod -o json');
+                //                 if (!sr || sr.code !== 0) {
+                //                     return [];
+                //                 }
+                //                 const pods = JSON.parse(sr.stdout);
+                //                 const podsums = pods.items.filter((p: any) => p.metadata.name.startsWith(r.name[0])).map((p: any) => ({name: p.metadata.name, extraInfo: undefined}));
+                //                 return podsums;
+                //             } }, undefined)
+                //         )
+                //     ]
+                //     ).at("Workloads")
+                // );
+
+                // ce.registerNodeContributor(
+                //     ce.nodeSources.groupingFolder("Arses", undefined,
+                //         ce.nodeSources.resourcesOf("ClusterRole", "clusterrole", { resources: 'list', list: [{ name: "admin", extraInfo: undefined }, { name: "cluster-admin", extraInfo: undefined }, { name: "edit", extraInfo: undefined }] }, (r) => ce.nodeSources.resourceFolder("pod", "ALL THE PODS UNDER " + r.name, "Pod", "pod")),
+                //         ce.nodeSources.resourceFolderOf("CR filt", "CR filtz", "ClusterRole", "clusterrole", () => [
+                //             ce.nodeSources.resourceOf('ClusterRole', 'clusterrole', { name: 'admin', extraInfo: undefined }, undefined),
+                //             ce.nodeSources.resourceOf('ClusterRole', 'clusterrole', { name: 'edit', extraInfo: undefined }, undefined),
+                //         ]),
+                //         ce.nodeSources.resourceFolder("CR", "CRs", "ClusterRole", "clusterrole"),
+                //         ce.nodeSources.resourceFolder("CRB", "CRBs", "ClusterRoleBinding", "clusterrolebinding"),
+                //     ).at("Workloads")
+                // );
+
                 ce.registerNodeContributor(
                     ce.nodeSources.groupingFolder("Arses", undefined,
-                        ce.nodeSources.resourcesOf("ClusterRole", "clusterrole", { resources: 'list', list: [{ name: "admin", extraInfo: undefined }, { name: "edit", extraInfo: undefined }] }, (r) => ce.nodeSources.resourceFolder("pod", "ALL THE PODS UNDER " + r.name, "Pod", "pod")),
+                        ce.nodeSources.resourcesOf("ClusterRole", "clusterrole", { resources: 'list', list: [{ name: "admin", extraInfo: undefined }, { name: "cluster-admin", extraInfo: undefined }, { name: "edit", extraInfo: undefined }] }, undefined),
                         ce.nodeSources.resourceFolderOf("CR filt", "CR filtz", "ClusterRole", "clusterrole", () => [
                             ce.nodeSources.resourceOf('ClusterRole', 'clusterrole', { name: 'admin', extraInfo: undefined }, undefined),
+                            ce.nodeSources.resourceOf('ClusterRole', 'clusterrole', { name: "cluster-admin", extraInfo: undefined }, undefined),
                             ce.nodeSources.resourceOf('ClusterRole', 'clusterrole', { name: 'edit', extraInfo: undefined }, undefined),
                         ]),
-                        ce.nodeSources.resourceFolder("CR", "CRs", "ClusterRole", "clusterrole"),
-                        ce.nodeSources.resourceFolder("CRB", "CRBs", "ClusterRoleBinding", "clusterrolebinding"),
                     ).at("Workloads")
                 );
+
             }
         }
     }

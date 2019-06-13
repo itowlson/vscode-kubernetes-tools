@@ -8,6 +8,9 @@ import { Host } from "../../../host";
 import { CustomResourceFolderNodeSource, CustomGroupingFolderNodeSource, NodeSourceImpl, CustomResourceOfNodeSource, CustomResourceFolderOfNodeSource, CustomResourcesOfNodeSource } from "../../../components/clusterexplorer/extension.nodesources";
 import { ClusterExplorerNode, ClusterExplorerResourceNode, ClusterExplorerCustomNode } from "../../../components/clusterexplorer/node";
 import { ResourceKind } from '../../../kuberesources';
+import { ResourceKindUIDescriptor, ResourceLister, ResourceChildSource, ResourceUICustomiser } from '../../../components/clusterexplorer/resourceui';
+import { ResourceNode } from '../../../components/clusterexplorer/node.resource';
+import { flatten } from '../../../utils/array';
 
 export function impl(explorer: KubernetesExplorer): ClusterExplorerV1 {
     return new ClusterExplorerV1Impl(explorer);
@@ -36,6 +39,11 @@ class ClusterExplorerV1Impl implements ClusterExplorerV1 {
     registerNodeUICustomizer(nodeUICustomizer: ClusterExplorerV1.NodeUICustomizer): void {
         const adapted = adaptToExplorerUICustomizer(nodeUICustomizer);
         this.explorer.registerUICustomiser(adapted);
+    }
+
+    registerKind(manifestKind: string, abbreviation: string, kindUIDescriptor: ClusterExplorerV1.ResourceKindUIDescriptor): void {
+        const adapted = adaptToExplorerResourceKindUIDescriptor(manifestKind, abbreviation, kindUIDescriptor);
+        this.explorer.registerKind(adapted);
     }
 
     get nodeSources(): ClusterExplorerV1.NodeSources {
@@ -79,6 +87,38 @@ class ClusterExplorerV1Impl implements ClusterExplorerV1 {
         const nodeSource = new CustomResourceOfNodeSource(new ResourceKind(manifestKind, manifestKind, manifestKind, abbreviation), resource, childrenFunc);
         return apiNodeSourceOf(nodeSource);
     }
+}
+
+function adaptToExplorerResourceKindUIDescriptor(manifestKind: string, abbreviation: string, kindUIDescriptor: ClusterExplorerV1.ResourceKindUIDescriptor): ResourceKindUIDescriptor {
+    const lister: ResourceLister = {
+        async list(_kubectl: Kubectl, _kind: ResourceKind): Promise<ClusterExplorerNode[]> {
+            const ns = kindUIDescriptor.lister!();
+            const nsimpl = internalNodeSourceOf(ns);
+            return await nsimpl.nodes();
+        }
+    };
+    const childSource: ResourceChildSource = {
+        async children(_kubectl: Kubectl, parent: ResourceNode): Promise<ClusterExplorerNode[]> {
+            const nss = kindUIDescriptor.children!({ name: parent.name, extraInfo: parent.extraInfo ? parent.extraInfo.custom : undefined });
+            const nsimpls = nss.map(internalNodeSourceOf);
+            const nsps = nsimpls.map((nsimpl) => nsimpl.nodes());
+            const narrs = await Promise.all(nsps);
+            return flatten(...narrs);
+        }
+    };
+    const customizer: ResourceUICustomiser = {
+        customiseTreeItem(resource: ResourceNode, treeItem: vscode.TreeItem): void {
+            const cfunc = kindUIDescriptor.customize!;
+            const apinode = adaptKubernetesExplorerNode(resource);
+            cfunc(apinode, treeItem);
+        }
+    };
+    return {
+        kind: new ResourceKind(manifestKind, manifestKind, manifestKind, abbreviation),
+        lister: kindUIDescriptor.lister ? lister : undefined,
+        childSources: kindUIDescriptor.children ? [childSource] : undefined,
+        uiCustomiser: kindUIDescriptor.customize ? customizer : undefined
+    };
 }
 
 function adaptToExplorerUICustomizer(nodeUICustomizer: ClusterExplorerV1.NodeUICustomizer): ExplorerUICustomizer<ClusterExplorerNode> {
@@ -197,6 +237,10 @@ function apiNodeSourceOf(nodeSet: NodeSourceImpl): ClusterExplorerV1.NodeSource 
     return {
         at(parent: string | undefined) { const ee = nodeSet.at(parent); return apiNodeContributorOf(ee); },
         if(condition: () => boolean | Thenable<boolean>) { return apiNodeSourceOf(nodeSet.if(condition)); },
+        filter(predicate: (n: ClusterExplorerV1.ClusterExplorerNode) => boolean) {
+            const internalPredicate: (c: ClusterExplorerNode) => boolean = (c) => predicate(adaptKubernetesExplorerNode(c));
+            return apiNodeSourceOf(nodeSet.filter(internalPredicate));
+        },
         async nodes() { return (await nodeSet.nodes()).map(apiNodeOf); },
         [BUILT_IN_NODE_SOURCE_KIND_TAG]: true,
         impl: nodeSet
@@ -210,6 +254,7 @@ function internalNodeSourceOf(nodeSet: ClusterExplorerV1.NodeSource): NodeSource
     return {
         at(parent: string | undefined) { return internalNodeContributorOf(nodeSet.at(parent)); },
         if(condition: () => boolean | Thenable<boolean>) { return internalNodeSourceOf(nodeSet).if(condition); },
+        filter(predicate: (c: ClusterExplorerNode) => boolean) { return internalNodeSourceOf(nodeSet).filter(predicate); },
         async nodes() { return (await nodeSet.nodes()).map(internalNodeOf); }
     };
 }

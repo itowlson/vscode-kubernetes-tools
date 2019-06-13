@@ -9,6 +9,7 @@ export interface ClusterExplorerV1 {
     registerNodeContributor(nodeContributor: ClusterExplorerV1.NodeContributor): void;
     readonly nodeSources: ClusterExplorerV1.NodeSources;
     registerNodeUICustomizer(nodeUICustomizer: ClusterExplorerV1.NodeUICustomizer): void;
+    registerKind(manifestKind: string, abbreviation: string, kindUIDescriptor: ClusterExplorerV1.ResourceKindUIDescriptor): void;
     refresh(): void;
 }
 
@@ -20,6 +21,12 @@ export namespace ClusterExplorerV1 {
 
     export interface NodeUICustomizer {
         customize(node: ClusterExplorerNode, treeItem: vscode.TreeItem): void | Thenable<void>;
+    }
+
+    export interface ResourceKindUIDescriptor {
+        readonly lister?: () => NodeSource;
+        readonly children?: (r: ResourceSummary) => NodeSource[];
+        readonly customize?: (node: ClusterExplorerNode, treeItem: vscode.TreeItem) => void;
     }
 
     export interface Node {
@@ -97,6 +104,7 @@ export namespace ClusterExplorerV1 {
     export interface NodeSource {
         at(parentFolder: string | undefined): NodeContributor;
         if(condition: () => boolean | Thenable<boolean>): NodeSource;
+        filter(predicate: (n: ClusterExplorerNode) => boolean): NodeSource;
         nodes(): Promise<Node[]>;
     }
 

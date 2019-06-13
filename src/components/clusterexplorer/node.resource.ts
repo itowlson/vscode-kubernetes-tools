@@ -8,11 +8,12 @@ import { ObjectMeta } from '../../kuberesources.objectmodel';
 import { kubefsUri } from '../../kuberesources.virtualfs';
 import { ClusterExplorerNode, ClusterExplorerNodeImpl, ClusterExplorerResourceNode } from './node';
 import { getChildSources, getUICustomiser, ResourceKindUIDescriptor, kindUIDescriptor } from './resourceui';
+import { HACKETY_HACK_kindUIDescriptors } from './explorer';
 
 export class ResourceNode extends ClusterExplorerNodeImpl implements ClusterExplorerResourceNode {
 
     static create(kind: kuberesources.ResourceKind, name: string, metadata: ObjectMeta | undefined, extraInfo: ResourceExtraInfo | undefined, uiDescriptor?: ResourceKindUIDescriptor): ClusterExplorerResourceNode {
-        const actualUIDescriptor = uiDescriptor || kindUIDescriptor(kind);
+        const actualUIDescriptor = uiDescriptor || HACKETY_HACK_kindUIDescriptors.find((d) => d.kind.manifestKind === kind.manifestKind) || kindUIDescriptor(kind);
         return new ResourceNode(kind, name, metadata, extraInfo, actualUIDescriptor);
     }
 

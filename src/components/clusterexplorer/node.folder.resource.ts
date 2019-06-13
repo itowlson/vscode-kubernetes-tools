@@ -7,11 +7,12 @@ import { MessageNode } from './node.message';
 import { FolderNode } from './node.folder';
 import { ResourceNode } from './node.resource';
 import { ResourceKindUIDescriptor, kindUIDescriptor } from './resourceui';
+import { HACKETY_HACK_kindUIDescriptors } from './explorer';
 
 export class ResourceFolderNode extends FolderNode implements ClusterExplorerResourceFolderNode {
 
     static create(kind: kuberesources.ResourceKind, uiDescriptor?: ResourceKindUIDescriptor): ResourceFolderNode {
-        const actualUIDescriptor = uiDescriptor || kindUIDescriptor(kind);
+        const actualUIDescriptor = uiDescriptor || HACKETY_HACK_kindUIDescriptors.find((d) => d.kind.manifestKind === kind.manifestKind) || kindUIDescriptor(kind);
         return new ResourceFolderNode(kind, actualUIDescriptor);
     }
 
