@@ -804,9 +804,30 @@ function getKubernetes(explorerNode?: any) {
                     //     }, undefined)];
                     // }
                     children(r: ClusterExplorerV1.ResourceSummary): ClusterExplorerV1.NodeSource[] {
+                        const firstLetter: string = r.extraInfo;
                         const podsStartingWithRightLetter = ce.nodeSources.resourcesOf('Pod', 'pod', {resources: 'all'}, undefined)
-                                                                          .filter((n) => n.nodeType === 'resource' && n.name.startsWith(r.name[0]));
+                                                                          .filter((n) => n.nodeType === 'resource' && n.name.startsWith(firstLetter));
                         return [podsStartingWithRightLetter];
+                    },
+
+                    lister(): ClusterExplorerV1.NodeSource {
+                        // const sr = await kc.invokeCommand('get clusterrole -o json');
+                        // if (!sr || sr.code !== 0) {
+                        //     return aMessageNode;
+                        // }
+                        // const items: any[] = JSON.parse(sr.stdout).items;
+                        // const nodeSources = items.map((i) => ce.nodeSources.resourceOf('ClusterRole', 'clusterrole', { resources: 'all' }, undefined);
+                        return ce.nodeSources.resourcesOf('ClusterRole', 'clusterrole', {
+                            resources: 'cb',
+                            list: async () => {
+                                const sr = await kc.invokeCommand('get clusterrole -o json');
+                                if (!sr || sr.code !== 0) {
+                                    return []; // TODO: aMessageNode;
+                                }
+                                const items: any[] = JSON.parse(sr.stdout).items;
+                                return items.map((i) => ({ name: i.metadata.name, extraInfo: i.metadata.name[0] }));
+                            }
+                        }, undefined);
                     }
                 });
 
@@ -847,6 +868,7 @@ function getKubernetes(explorerNode?: any) {
                             ce.nodeSources.resourceOf('ClusterRole', 'clusterrole', { name: "cluster-admin", extraInfo: undefined }, undefined),
                             ce.nodeSources.resourceOf('ClusterRole', 'clusterrole', { name: 'edit', extraInfo: undefined }, undefined),
                         ]),
+                        ce.nodeSources.resourceFolder("CLUSTORAMA", "CLUSTORAMA", "ClusterRole", "clusterrole"),
                     ).at("Workloads")
                 );
 
