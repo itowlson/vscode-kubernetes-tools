@@ -5,7 +5,7 @@ import { ExplorerExtender, ExplorerUICustomizer } from "../../../components/clus
 import { KUBERNETES_EXPLORER_NODE_CATEGORY, KubernetesExplorer } from "../../../components/clusterexplorer/explorer";
 import { Kubectl } from "../../../kubectl";
 import { Host } from "../../../host";
-import { CustomResourceFolderNodeSource, CustomGroupingFolderNodeSource, NodeSourceImpl } from "../../../components/clusterexplorer/extension.nodesources";
+import { CustomResourceFolderNodeSource, CustomGroupingFolderNodeSource, NodeSourceImpl, AllResourcesNodeSource } from "../../../components/clusterexplorer/extension.nodesources";
 import { ClusterExplorerNode, ClusterExplorerResourceNode, ClusterExplorerCustomNode } from "../../../components/clusterexplorer/node";
 import { ResourceKind } from '../../../kuberesources';
 
@@ -29,7 +29,7 @@ class ClusterExplorerV1Impl implements ClusterExplorerV1 {
     }
 
     registerNodeContributor(nodeContributor: ClusterExplorerV1.NodeContributor): void {
-        const adapted = internalNodeContributorOf(nodeContributor);
+        const adapted = extenderOf(nodeContributor);
         this.explorer.registerExtender(adapted);
     }
 
@@ -40,8 +40,9 @@ class ClusterExplorerV1Impl implements ClusterExplorerV1 {
 
     get nodeSources(): ClusterExplorerV1.NodeSources {
         return {
-            resourceFolder: resourceFolderContributor,
-            groupingFolder: groupingFolderContributor
+            resourceFolder: resourceFolderSource,
+            groupingFolder: groupingFolderSource,
+            resources: resourcesSources
         };
     }
 
@@ -60,7 +61,7 @@ class NodeContributorAdapter implements ExplorerExtender<ClusterExplorerNode> {
         const parentNode = parent ? adaptKubernetesExplorerNode(parent) : undefined;
         return this.impl.contributesChildren(parentNode);
     }
-    async getChildren(parent?: ClusterExplorerNode | undefined): Promise<ClusterExplorerNode[]> {
+    async getChildren(_kubectl: Kubectl, _host: Host, parent?: ClusterExplorerNode | undefined): Promise<ClusterExplorerNode[]> {
         const parentNode = parent ? adaptKubernetesExplorerNode(parent) : undefined;
         const children = await this.impl.getChildren(parentNode);
         return children.map(internalNodeOf);
@@ -119,7 +120,6 @@ function adaptKubernetesExplorerResourceNode(node: ClusterExplorerResourceNode):
 export class ContributedNode implements ClusterExplorerCustomNode {
     readonly nodeCategory = 'kubernetes-explorer-node';
     readonly nodeType = 'extension';
-    readonly id = 'dummy';
 
     constructor(private readonly impl: ClusterExplorerV1.Node) { }
 
@@ -131,18 +131,30 @@ export class ContributedNode implements ClusterExplorerCustomNode {
     }
 }
 
-function resourceFolderContributor(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string): ClusterExplorerV1.NodeSource {
+function resourceFolderSource(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string): ClusterExplorerV1.NodeSource {
     const nodeSource = new CustomResourceFolderNodeSource(new ResourceKind(displayName, pluralDisplayName, manifestKind, abbreviation));
-    return apiNodeSourceOf(nodeSource);
+    return wrapNS(nodeSource);
 }
 
-function groupingFolderContributor(displayName: string, contextValue: string | undefined, ...children: ClusterExplorerV1.NodeSource[]): ClusterExplorerV1.NodeSource {
-    const nodeSource = new CustomGroupingFolderNodeSource(displayName, contextValue, children.map(internalNodeSourceOf));
-    return apiNodeSourceOf(nodeSource);
+function groupingFolderSource(displayName: string, contextValue: string | undefined, ...children: ClusterExplorerV1.NodeSource[]): ClusterExplorerV1.NodeSource {
+    const nodeSource = new CustomGroupingFolderNodeSource(displayName, contextValue, children.map(nsImpl));
+    return wrapNS(nodeSource);
+}
+
+function allResourcesSource(manifestKind: string, abbreviation: string): ClusterExplorerV1.NodeSource {
+    const nodeSource = new AllResourcesNodeSource(manifestKind, abbreviation);
+    return wrapNS(nodeSource);
+}
+
+function resourcesSources(manifestKind: string, abbreviation: string) {
+    return {
+        all() { return allResourcesSource(manifestKind, abbreviation); },
+        fromQuery(_kubectlGetOptions: string) { return resourceFolderSource(abbreviation, abbreviation, manifestKind, abbreviation); },
+    };
 }
 
 const BUILT_IN_CONTRIBUTOR_KIND_TAG = 'nativeextender-4a4bc473-a8c6-4b1e-973f-22327f99cea8';
-const BUILT_IN_NODE_KIND_TAG = 'nativek8sobject-5be3c876-3683-44cd-a400-7763d2c4302a';
+const BUILT_IN_NODE_KIND_TAG = 'nativenode-5be3c876-3683-44cd-a400-7763d2c4302a';
 const BUILT_IN_NODE_SOURCE_KIND_TAG = 'nativenodesource-aa0c30a9-bf1d-444a-a147-7823edcc7c04';
 
 interface BuiltInNodeContributor {
@@ -160,35 +172,39 @@ interface BuiltInNode {
     readonly impl: ClusterExplorerNode;
 }
 
-function apiNodeSourceOf(nodeSet: NodeSourceImpl): ClusterExplorerV1.NodeSource & BuiltInNodeSource {
+function wrapNS(nodeSet: NodeSourceImpl): ClusterExplorerV1.NodeSource & BuiltInNodeSource {
     return {
-        at(parent: string | undefined) { const ee = nodeSet.at(parent); return apiNodeContributorOf(ee); },
-        if(condition: () => boolean | Thenable<boolean>) { return apiNodeSourceOf(nodeSet.if(condition)); },
-        async nodes() { return (await nodeSet.nodes()).map(apiNodeOf); },
+        at(parent: string | undefined) { const ee = nodeSet.at(parent); return wrapAsNC(ee); },
+        if(condition: () => boolean | Thenable<boolean>) { return wrapNS(nodeSet.if(condition)); },
+        async nodes() { throw new Error("Don't call the interface nodes() method - it should only ever be called on the built-in implementation"); },
         [BUILT_IN_NODE_SOURCE_KIND_TAG]: true,
         impl: nodeSet
     };
 }
 
-function internalNodeSourceOf(nodeSet: ClusterExplorerV1.NodeSource): NodeSourceImpl {
-    if ((<any>nodeSet)[BUILT_IN_NODE_SOURCE_KIND_TAG]) {
-        return (nodeSet as unknown as BuiltInNodeSource).impl;
-    }
-    return {
-        at(parent: string | undefined) { return internalNodeContributorOf(nodeSet.at(parent)); },
-        if(condition: () => boolean | Thenable<boolean>) { return internalNodeSourceOf(nodeSet).if(condition); },
-        async nodes() { return (await nodeSet.nodes()).map(internalNodeOf); }
-    };
+function isBuiltInNodeSource(nodeSet: ClusterExplorerV1.NodeSource): nodeSet is ClusterExplorerV1.NodeSource & BuiltInNodeSource {
+    return (<any>nodeSet)[BUILT_IN_NODE_SOURCE_KIND_TAG] === true;
 }
 
-function internalNodeContributorOf(nodeContributor: ClusterExplorerV1.NodeContributor): ExplorerExtender<ClusterExplorerNode> {
-    if ((<any>nodeContributor)[BUILT_IN_CONTRIBUTOR_KIND_TAG] === true) {
-        return (nodeContributor as unknown as BuiltInNodeContributor).impl;
+function nsImpl(nodeSource: ClusterExplorerV1.NodeSource): NodeSourceImpl {
+    if (isBuiltInNodeSource(nodeSource)) {
+        return nodeSource.impl;
+    }
+    throw new Error("Don't implement the NodeSource interface yourself");
+}
+
+function isBuiltInNodeContributor(nodeContributor: ClusterExplorerV1.NodeContributor): nodeContributor is ClusterExplorerV1.NodeContributor & BuiltInNodeContributor {
+    return (<any>nodeContributor)[BUILT_IN_CONTRIBUTOR_KIND_TAG] === true;
+}
+
+function extenderOf(nodeContributor: ClusterExplorerV1.NodeContributor): ExplorerExtender<ClusterExplorerNode> {
+    if (isBuiltInNodeContributor(nodeContributor)) {
+        return nodeContributor.impl;
     }
     return new NodeContributorAdapter(nodeContributor);
 }
 
-function apiNodeContributorOf(ee: ExplorerExtender<ClusterExplorerNode>): ClusterExplorerV1.NodeContributor & BuiltInNodeContributor {
+function wrapAsNC(ee: ExplorerExtender<ClusterExplorerNode>): ClusterExplorerV1.NodeContributor & BuiltInNodeContributor {
     return {
         contributesChildren(_parent) { return false; },
         async getChildren(_parent) { return []; },
@@ -197,18 +213,13 @@ function apiNodeContributorOf(ee: ExplorerExtender<ClusterExplorerNode>): Cluste
     };
 }
 
-export function internalNodeOf(node: ClusterExplorerV1.Node): ClusterExplorerNode {
-    if ((<any>node)[BUILT_IN_NODE_KIND_TAG]) {
-        return (node as unknown as BuiltInNode).impl;
-    }
-    return new ContributedNode(node);
+function isBuiltInNode(node: ClusterExplorerV1.Node): node is ClusterExplorerV1.Node & BuiltInNode {
+    return (<any>node)[BUILT_IN_NODE_KIND_TAG] === true;
 }
 
-function apiNodeOf(node: ClusterExplorerNode): ClusterExplorerV1.Node & BuiltInNode {
-    return {
-        async getChildren() { throw new Error('apiNodeOf->getChildren: not expected to be called directly'); },
-        getTreeItem() { throw new Error('apiNodeOf->getTreeItem: not expected to be called directly'); },
-        [BUILT_IN_NODE_KIND_TAG]: true,
-        impl: node
-    };
+export function internalNodeOf(node: ClusterExplorerV1.Node): ClusterExplorerNode {
+    if (isBuiltInNode(node)) {
+        return node.impl;
+    }
+    return new ContributedNode(node);
 }

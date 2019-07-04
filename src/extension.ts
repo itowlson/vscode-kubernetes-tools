@@ -75,7 +75,7 @@ import { linters } from './components/lint/linters';
 import { runClusterWizard } from './components/clusterprovider/clusterproviderserver';
 import { timestampText } from './utils/naming';
 import { ContainerContainer } from './utils/containercontainer';
-import { APIBroker } from './api/contract/api';
+import { APIBroker, API } from './api/contract/api';
 import { apiBroker } from './api/implementation/apibroker';
 import { sleep } from './sleep';
 import { CloudExplorer, CloudExplorerTreeNode } from './components/cloudexplorer/cloudexplorer';
@@ -84,6 +84,7 @@ import { PortForwardStatusBarManager } from './components/kubectl/port-forward-u
 import { getBuildCommand, getPushCommand } from './image/imageUtils';
 import { getImageBuildTool } from './components/config/config';
 import { ClusterExplorerNode, ClusterExplorerConfigurationValueNode, ClusterExplorerResourceNode, ClusterExplorerResourceFolderNode } from './components/clusterexplorer/node';
+import { ClusterExplorerV1 } from './api/contract/cluster-explorer/v1';
 
 let explainActive = false;
 let swaggerSpecPromise: Promise<explainer.SwaggerModel | undefined> | null = null;
@@ -123,6 +124,8 @@ export const HELM_MODE: vscode.DocumentFilter = { language: "helm", scheme: "fil
 export const HELM_REQ_MODE: vscode.DocumentFilter = { language: "helm", scheme: "file", pattern: "**/requirements.yaml"};
 export const HELM_CHART_MODE: vscode.DocumentFilter = { language: "helm", scheme: "file", pattern: "**/Chart.yaml" };
 export const HELM_TPL_MODE: vscode.DocumentFilter = { language: "helm", scheme: "file", pattern: "**/templates/*.*" };
+
+let API_OBJ: APIBroker | null = null;
 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
@@ -380,7 +383,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<APIBro
     await registerYamlSchemaSupport();
 
     vscode.workspace.registerTextDocumentContentProvider(configmaps.uriScheme, configMapProvider);
-    return apiBroker(clusterProviderRegistry, kubectl, portForwardStatusBarManager, treeProvider, cloudExplorer);
+    API_OBJ = apiBroker(clusterProviderRegistry, kubectl, portForwardStatusBarManager, treeProvider, cloudExplorer);
+    return API_OBJ;
 }
 
 // this method is called when your extension is deactivated
@@ -776,9 +780,25 @@ function getKubernetes(explorerNode?: any) {
         const nsarg = (node.nodeType === 'resource' && node.namespace) ? `--namespace ${node.namespace}` : '';
         kubectl.invokeInSharedTerminal(`get ${id} ${nsarg} -o wide`);
     } else {
-        findKindNameOrPrompt(kuberesources.commonKinds, 'get', { nameOptional: true }, (value) => {
-            kubectl.invokeInSharedTerminal(` get ${value} -o wide`);
-        });
+        // findKindNameOrPrompt(kuberesources.commonKinds, 'get', { nameOptional: true }, (value) => {
+        //     kubectl.invokeInSharedTerminal(` get ${value} -o wide`);
+        // });
+        if (API_OBJ) {
+            const cem: API<ClusterExplorerV1> = API_OBJ.get('clusterexplorer', 'v1');
+            if (!cem.available) {
+                vscode.window.showErrorMessage('NO API!!!!');
+                return;
+            }
+
+            const ce = cem.api;
+
+            ce.registerNodeContributor(
+                ce.nodeSources.groupingFolder('Security, Blackadder', undefined,
+                    // ce.nodeSources.resourceFolder('CRB', 'CRBs', 'ClusterRoleBinding', 'clusterrolebinding')
+                    ce.nodeSources.resources('ClusterRoleBinding', 'clusterrolebinding').all()
+                ).at(undefined)
+            );
+        }
     }
 }
 
