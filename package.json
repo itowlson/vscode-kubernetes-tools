@@ -1213,7 +1213,7 @@
         "redhat.vscode-yaml"
     ],
     "dependencies": {
-        "@kubernetes/client-node": "0.7.1",
+        "@kubernetes/client-node": "^0.10.3",
         "@types/clipboardy": "^1.1.0",
         "@types/js-yaml": "^3.12.0",
         "@types/lodash": "^4.14.113",
