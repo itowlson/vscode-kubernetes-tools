@@ -11,3 +11,7 @@ export interface Linter {
 export const linters: Linter[] = [
     new ResourceLimitsLinter()
 ].map(expose);
+
+export function registerLinter(linter: Linter): void {
+    linters.push(linter);
+}
