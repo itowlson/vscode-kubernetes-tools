@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 
 import { DiagnosticsV1 } from '../../contract/diagnostics/v1';
 import { registerLinter, Linter } from '../../../components/lint/linters';
-import { parseJSON, parseYAML } from '../../../components/lint/parsers';
 
 export function impl(): DiagnosticsV1 {
     return new DiagnosticsV1Impl();
@@ -17,24 +16,9 @@ class DiagnosticsV1Impl implements DiagnosticsV1 {
 
 function asLinter(diagnosticContributor: DiagnosticsV1.DiagnosticsContributor): Linter {
     function name() { return diagnosticContributor.name; }
-    async function lint(document: vscode.TextDocument) { return await diagnosticContributor.analyse(document, await syntax(document)); }
+    async function lint(document: vscode.TextDocument) { return await diagnosticContributor.analyse(document); }
     return {
         name,
         lint
     };
-}
-
-async function syntax(document: vscode.TextDocument): Promise<DiagnosticsV1.ResourceEntryMapContent[]> {
-    try {
-        switch (document.languageId) {
-            case 'json':
-                return await parseJSON(document);
-            case 'yaml':
-                return await parseYAML(document);
-            default:
-                return [];
-        }
-    } catch {
-        return [];
-    }
 }
