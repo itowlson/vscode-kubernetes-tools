@@ -16,7 +16,13 @@ class DiagnosticsV1Impl implements DiagnosticsV1 {
 
 function asLinter(diagnosticContributor: DiagnosticsV1.DiagnosticsContributor): Linter {
     function name() { return diagnosticContributor.name; }
-    async function lint(document: vscode.TextDocument) { return await diagnosticContributor.analyse(document); }
+    async function lint(document: vscode.TextDocument) {
+        const diagnostics = await diagnosticContributor.analyse(document);
+        if (Array.isArray(diagnostics)) {
+            return diagnostics;
+        }
+        return Array.of(...diagnostics);
+    }
     return {
         name,
         lint

@@ -11,6 +11,6 @@ export interface DiagnosticsV1 {
 export namespace DiagnosticsV1 {
     export interface DiagnosticsContributor {
         readonly name: string;
-        analyse(document: vscode.TextDocument): Promise<vscode.Diagnostic[]>;
+        analyse(document: vscode.TextDocument): vscode.Diagnostic[] | IterableIterator<vscode.Diagnostic> | Promise<vscode.Diagnostic[]> | Promise<IterableIterator<vscode.Diagnostic>>;
     }
 }
