@@ -14,4 +14,5 @@ export const linters: Linter[] = [
 
 export function registerLinter(linter: Linter): void {
     linters.push(linter);
+    // TODO: refresh lintage of existing documents
 }
