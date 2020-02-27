@@ -1,3 +1,5 @@
+import * as vscode from 'vscode';
+
 import { APIBroker, API } from "../contract/api";
 import { versionUnknown } from "./apiutils";
 import * as clusterprovider from "./clusterprovider/versions";
@@ -13,7 +15,7 @@ import { KubernetesExplorer } from "../../components/clusterexplorer/explorer";
 import { CloudExplorer } from "../../components/cloudexplorer/cloudexplorer";
 import { PortForwardStatusBarManager } from "../../components/kubectl/port-forward-ui";
 
-export function apiBroker(clusterProviderRegistry: ClusterProviderRegistry, kubectlImpl: Kubectl, portForwardStatusBarManager: PortForwardStatusBarManager, explorer: KubernetesExplorer, cloudExplorer: CloudExplorer): APIBroker {
+export function apiBroker(clusterProviderRegistry: ClusterProviderRegistry, kubectlImpl: Kubectl, portForwardStatusBarManager: PortForwardStatusBarManager, explorer: KubernetesExplorer, cloudExplorer: CloudExplorer, relint: (document: vscode.TextDocument) => {}): APIBroker {
     return {
         get(component: string, version: string): API<any> {
             switch (component) {
@@ -23,7 +25,7 @@ export function apiBroker(clusterProviderRegistry: ClusterProviderRegistry, kube
                 case "clusterexplorer": return clusterexplorer.apiVersion(explorer, version);
                 case "cloudexplorer": return cloudexplorer.apiVersion(cloudExplorer, version);
                 case "configuration": return configuration.apiVersion(version);
-                case "diagnostics": return diagnostics.apiVersion(version);
+                case "diagnostics": return diagnostics.apiVersion(version, relint);
                 default: return versionUnknown;
             }
         },

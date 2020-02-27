@@ -12,7 +12,7 @@ export const linters: Linter[] = [
     new ResourceLimitsLinter()
 ].map(expose);
 
-export function registerLinter(linter: Linter): void {
+export function registerLinter(linter: Linter, refresh: (document: vscode.TextDocument) => {}): void {
     linters.push(linter);
-    // TODO: refresh lintage of existing documents
+    vscode.workspace.textDocuments.forEach(refresh);
 }
