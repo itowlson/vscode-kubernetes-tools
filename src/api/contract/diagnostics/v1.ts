@@ -12,5 +12,6 @@ export namespace DiagnosticsV1 {
     export interface DiagnosticsContributor {
         readonly name: string;
         analyse(document: vscode.TextDocument): vscode.Diagnostic[] | IterableIterator<vscode.Diagnostic> | Promise<vscode.Diagnostic[]> | Promise<IterableIterator<vscode.Diagnostic>>;
+        codeActions?(document: vscode.TextDocument, range: vscode.Range, context: vscode.CodeActionContext): Promise<(vscode.Command | vscode.CodeAction)[]>;
     }
 }

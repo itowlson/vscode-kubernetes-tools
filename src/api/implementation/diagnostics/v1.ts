@@ -25,8 +25,15 @@ function asLinter(diagnosticContributor: DiagnosticsV1.DiagnosticsContributor): 
         }
         return Array.of(...diagnostics);
     }
+    async function codeActions(document: vscode.TextDocument, range: vscode.Range, context: vscode.CodeActionContext) {
+        if (!diagnosticContributor.codeActions) {
+            return [];
+        }
+        return await diagnosticContributor.codeActions(document, range, context);
+    }
     return {
         name,
-        lint
+        lint,
+        codeActions
     };
 }

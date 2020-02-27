@@ -71,7 +71,7 @@ import { Container, isKubernetesResource, KubernetesCollection, Pod, KubernetesR
 import { setActiveKubeconfig, getKnownKubeconfigs, addKnownKubeconfig } from './components/config/config';
 import { HelmDocumentSymbolProvider } from './helm.symbolProvider';
 import { findParentYaml } from './yaml-support/yaml-navigation';
-import { linters } from './components/lint/linters';
+import { linters, isLintable, isLinterDisabled, lintersCodeActionProvider } from './components/lint/linters';
 import { runClusterWizard } from './components/clusterprovider/clusterproviderserver';
 import { timestampText } from './utils/naming';
 import { ContainerContainer } from './utils/containercontainer';
@@ -146,6 +146,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<APIBro
         "helm",
         {pattern: "**/templates/NOTES.txt"}
     ];
+
+    const quickFixProvider = lintersCodeActionProvider();
+    const quickFixDocumentSelector: vscode.DocumentSelector = [ 'yaml', 'json', 'helm' ];
 
     const draftDebugProvider = new DraftConfigurationProvider();
     let draftDebugSession: vscode.DebugSession;
@@ -294,6 +297,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<APIBro
 
         // Status bar
         portForwardStatusBarItem,
+
+        // Code actions
+        vscode.languages.registerCodeActionsProvider(quickFixDocumentSelector, quickFixProvider),
 
         // Telemetry
         registerTelemetry(context),
@@ -2150,14 +2156,6 @@ async function helmParameterise() {
     }
 }
 
-function isLintable(document: vscode.TextDocument): boolean {
-    return document.languageId === 'yaml' || document.languageId === 'json' || document.languageId === 'helm';
-}
-
-function linterDisabled(disabledLinters: string[], name: string): boolean {
-    return (disabledLinters || []).some((l) => l === name);
-}
-
 async function kubernetesLint(document: vscode.TextDocument): Promise<void> {
     if (config.getDisableLint()) {
         return;
@@ -2169,7 +2167,7 @@ async function kubernetesLint(document: vscode.TextDocument): Promise<void> {
     const disabledLinters = config.getDisabledLinters();
     const linterPromises =
         linters
-            .filter((l) => !linterDisabled(disabledLinters, l.name()))
+            .filter((l) => !isLinterDisabled(disabledLinters, l.name()))
             .map((l) => l.lint(document));
     const linterResults = await Promise.all(linterPromises);
     const diagnostics = ([] as vscode.Diagnostic[]).concat(...linterResults);

@@ -81,4 +81,8 @@ export class ResourceLimitsLinter implements LinterImpl {
 
         return warnings;
     }
+
+    async codeActions(_document: vscode.TextDocument, _range: vscode.Range, _context: vscode.CodeActionContext): Promise<(vscode.Command | vscode.CodeAction)[]> {
+        return [];
+    }
 }
