@@ -1,12 +1,8 @@
 import * as vscode from 'vscode';
 import * as yaml from 'js-yaml';
+import * as kp from 'k8s-manifest-parser';
 
-import { JsonALikeYamlDocumentSymbolProvider } from '../../yaml-support/jsonalike-symbol-provider';
 import { Linter } from './linters';
-import { JsonHierarchicalDocumentSymbolProvider } from '../json/jsonhierarchicalsymbolprovider';
-
-const jsonalikeYamlSymboliser = new JsonALikeYamlDocumentSymbolProvider();
-const jsonSymboliser = new JsonHierarchicalDocumentSymbolProvider();
 
 export function expose(impl: LinterImpl): Linter {
     return new StandardLinter(impl);
@@ -14,7 +10,7 @@ export function expose(impl: LinterImpl): Linter {
 
 export interface Syntax {
     load(text: string): any[];
-    symbolise(document: vscode.TextDocument): Promise<vscode.SymbolInformation[] | null | undefined>;
+    parse(document: vscode.TextDocument): kp.ResourceParse[];
 }
 
 class StandardLinter implements Linter {
@@ -43,12 +39,12 @@ class StandardLinter implements Linter {
 
 const jsonSyntax: Syntax = {
     load(text: string) { return [JSON.parse(text)]; },
-    async symbolise(document: vscode.TextDocument) { return await jsonSymboliser.provideDocumentSymbols(document, new vscode.CancellationTokenSource().token); }
+    parse(document: vscode.TextDocument) { return kp.parseJSON(document.getText()); }
 };
 
 const yamlSyntax: Syntax = {
     load(text: string) { return yaml.safeLoadAll(text); },
-    async symbolise(document: vscode.TextDocument) { return await jsonalikeYamlSymboliser.provideDocumentSymbols(document, new vscode.CancellationTokenSource().token); }
+    parse(document: vscode.TextDocument) { return kp.parseYAML(document.getText()); }
 };
 
 export interface LinterImpl {

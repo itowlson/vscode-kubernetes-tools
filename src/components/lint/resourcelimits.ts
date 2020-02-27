@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
+import * as kp from 'k8s-manifest-parser';
 
 import { LinterImpl, Syntax } from './linter.impl';
-import { warningOn, childSymbols } from './linter.utils';
+import { warningOn } from './linter.utils';
 import { flatten } from '../../utils/array';
 
 // Pod->spec (which can also be found as Deployment->spec.template.spec)
@@ -13,64 +14,68 @@ export class ResourceLimitsLinter implements LinterImpl {
     }
 
     async lint(document: vscode.TextDocument, syntax: Syntax): Promise<vscode.Diagnostic[]> {
-        const resources = syntax.load(document.getText());
+        const resources = syntax.parse(document);
         if (!resources) {
             return [];
         }
 
-        const symbols = await syntax.symbolise(document);
-        if (!symbols) {
-            return [];
-        }
-
-        const diagnostics = resources.map((r) => this.lintOne(r, symbols));
+        const diagnostics = resources.map((r) => this.lintOne(document, r));
         return flatten(...diagnostics);
     }
 
-    private lintOne(resource: any, symbols: vscode.SymbolInformation[]): vscode.Diagnostic[] {
-        if (!resource) {
+    private lintOne(document: vscode.TextDocument, resourceParse: kp.ResourceParse): vscode.Diagnostic[] {
+        if (!resourceParse) {
             return [];
         }
 
-        const podSpecPrefix =
-            resource.kind === 'Pod' ? 'spec' :
-            resource.kind === 'Deployment' ? 'spec.template.spec' :
-            undefined;
-        if (!podSpecPrefix) {
+        const resource = kp.asTraversable(resourceParse);
+
+        // TODO: lib should provide helpers for kinds
+        const isPod = resource.string('kind').valid() && resource.string('kind').value() === 'Pod';
+        const isDeployment = resource.string('kind').valid() && resource.string('kind').value() === 'Deployment';
+
+        if (!isPod && !isDeployment) {
             return [];
         }
 
-        const containersSymbols = symbols.filter((s) => s.name === 'containers' && s.containerName === podSpecPrefix);
-        if (!containersSymbols) {
+        const podSpec = isPod ? resource.map('spec') : resource.map('spec').map('template').map('spec');
+        if (!podSpec.exists() || !podSpec.valid()) {
+            return [];
+        }
+
+        const containers = podSpec.array('containers');
+        if (!containers.exists() || !containers.valid()) {
             return [];
         }
 
         const warnings: vscode.Diagnostic[] = [];
-        const warnOn = (symbol: vscode.SymbolInformation, text: string) => {
-            warnings.push(warningOn(symbol, text));
+        const warnOn = (symbol: kp.Keyed, text: string) => {
+            warnings.push(warningOn(document, symbol, text));
         };
 
-        for (const containersSymbol of containersSymbols) {
-            const imagesSymbols = childSymbols(symbols, containersSymbol, 'image');
-            const resourcesSymbols = childSymbols(symbols, containersSymbol, 'resources');
-            if (resourcesSymbols.length < imagesSymbols.length) {
-                warnOn(containersSymbol, 'One or more containers do not have resource limits - this could starve other processes');
+        for (let index = 0; index < containers.items().length; ++index) {
+            const container = containers.map(index);
+            if (!container.exists() || !container.valid()) {
+                continue;
             }
-            for (const resourcesSymbol of resourcesSymbols) {
-                const limitsSymbols = childSymbols(symbols, resourcesSymbol, 'limits');
-                if (limitsSymbols.length === 0) {
-                    warnOn(resourcesSymbol, 'No resource limits specified for this container - this could starve other processes');
-                }
-                for (const limitsSymbol of limitsSymbols) {
-                    const cpuSymbols = childSymbols(symbols, limitsSymbol, 'cpu');
-                    if (cpuSymbols.length === 0) {
-                        warnOn(limitsSymbol, 'No CPU limit specified for this container - this could starve other processes');
-                    }
-                    const memorySymbols = childSymbols(symbols, limitsSymbol, 'memory');
-                    if (memorySymbols.length === 0) {
-                        warnOn(limitsSymbol, 'No memory limit specified for this container - this could starve other processes');
-                    }
-                }
+            const resources = container.map('resources');
+            if (!resources.exists() || !resources.valid()) {
+                // TODO: we should be able to give a range for the container node dammit
+                warnOn(containers, 'One or more containers does not have resource limits - this could starve critical processes');
+                continue;
+            }
+            const limits = resources.map('limits');
+            if (!limits.exists() || !limits.valid()) {
+                warnOn(resources, 'Container does not have resource limits - this could starve critical processes');
+                continue;
+            }
+            const cpuLimit = limits.child('cpu');
+            if (!cpuLimit.exists()) {
+                warnOn(limits, 'Container does not specify a CPU limit - this could starve critical processes');
+            }
+            const memoryLimit = limits.child('memory');
+            if (!memoryLimit.exists()) {
+                warnOn(limits, 'Container does not specify a memory limit - this could starve critical processes');
             }
         }
 
