@@ -58,11 +58,13 @@ export class ResourceLimitsLinter implements LinterImpl {
                 continue;
             }
             const limits = container.map('resources').map('limits');
-            if (!limits.child('cpu').exists()) {
-                warnOn(limits, 'Container does not specify a CPU limit - this could starve critical processes');
+            const cpuLimit = limits.child('cpu');
+            if (!cpuLimit.exists()) {
+                warnOn(cpuLimit, 'Container does not specify a CPU limit - this could starve critical processes');
             }
-            if (!limits.child('memory').exists()) {
-                warnOn(limits, 'Container does not specify a memory limit - this could starve critical processes');
+            const memoryLimit = limits.child('memory');
+            if (!memoryLimit.exists()) {
+                warnOn(memoryLimit, 'Container does not specify a memory limit - this could starve critical processes');
             }
         }
 
