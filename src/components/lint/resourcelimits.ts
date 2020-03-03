@@ -49,32 +49,19 @@ export class ResourceLimitsLinter implements LinterImpl {
         }
 
         const warnings: vscode.Diagnostic[] = [];
-        const warnOn = (symbol: kp.Keyed, text: string) => {
+        const warnOn = (symbol: kp.TraversalEntry, text: string) => {
             warnings.push(warningOn(document, symbol, text));
         };
 
-        for (let index = 0; index < containers.items().length; ++index) {
-            const container = containers.map(index);
+        for (const container of containers.maps()) {
             if (!container.exists() || !container.valid()) {
                 continue;
             }
-            const resources = container.map('resources');
-            if (!resources.exists() || !resources.valid()) {
-                // TODO: we should be able to give a range for the container node dammit
-                warnOn(containers, 'One or more containers does not have resource limits - this could starve critical processes');
-                continue;
-            }
-            const limits = resources.map('limits');
-            if (!limits.exists() || !limits.valid()) {
-                warnOn(resources, 'Container does not have resource limits - this could starve critical processes');
-                continue;
-            }
-            const cpuLimit = limits.child('cpu');
-            if (!cpuLimit.exists()) {
+            const limits = container.map('resources').map('limits');
+            if (!limits.child('cpu').exists()) {
                 warnOn(limits, 'Container does not specify a CPU limit - this could starve critical processes');
             }
-            const memoryLimit = limits.child('memory');
-            if (!memoryLimit.exists()) {
+            if (!limits.child('memory').exists()) {
                 warnOn(limits, 'Container does not specify a memory limit - this could starve critical processes');
             }
         }

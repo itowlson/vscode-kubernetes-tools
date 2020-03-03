@@ -1267,7 +1267,7 @@
         "got": "9.6.0",
         "graceful-fs": "^4.1.11",
         "js-yaml": "^3.13.1",
-        "k8s-manifest-parser": "0.0.1",
+        "k8s-manifest-parser": "0.0.2",
         "lodash": "^4.17.15",
         "mixin-deep": "^1.3.2",
         "mkdirp": "^0.5.1",
