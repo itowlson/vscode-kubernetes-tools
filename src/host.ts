@@ -2,9 +2,11 @@ import * as vscode from 'vscode';
 import { shellEnvironment } from './shell';
 import { showWorkspaceFolderPick } from './hostutils';
 import { Dictionary } from './utils/dictionary';
+import { SuppressionSettings, shouldSuppress, setSuppressed, suppressible } from './utils/suppression';
 
 export interface Host {
     showErrorMessage(message: string, ...items: string[]): Thenable<string | undefined>;
+    showSuppressibleErrorMessage(message: string, settings: SuppressionSettings, ...items: (OfferedAction | NotNow)[]): Thenable<OfferedAction | undefined>;
     showWarningMessage(message: string, ...items: string[]): Thenable<string | undefined>;
     showInformationMessage(message: string, ...items: string[]): Thenable<string | undefined>;
     showInputBox(options: vscode.InputBoxOptions, token?: vscode.CancellationToken): Thenable<string | undefined>;
@@ -24,6 +26,7 @@ export interface Host {
 
 export const host: Host = {
     showErrorMessage : showErrorMessage,
+    showSuppressibleErrorMessage : showSuppressibleErrorMessage,
     showWarningMessage : showWarningMessage,
     showInformationMessage : showInformationMessage,
     showQuickPick : showQuickPickAny,
@@ -183,4 +186,38 @@ function uiOptionsObjectOf(uiOptions: string | LongRunningUIOptions): LongRunnin
 
 function isLongRunningUIOptions(obj: string | LongRunningUIOptions): obj is LongRunningUIOptions {
     return !!((obj as LongRunningUIOptions).title);
+}
+
+export interface OfferedAction {
+    readonly kind: 'offered-action';
+    readonly text: string;
+}
+
+export interface NotNow {
+    readonly kind: 'not-now';
+    readonly text: string;
+}
+
+export async function showSuppressibleErrorMessage(message: string, settings: SuppressionSettings, ...options: (OfferedAction | NotNow)[]): Promise<OfferedAction | undefined> {
+    if (shouldSuppress(settings)) {
+        return undefined;
+    }
+
+    const showableOptions = suppressible(settings) ? options : options.filter((o) => o.kind === 'offered-action');
+
+    const buttons = showableOptions.map((o) => o.text);
+    const choice = await vscode.window.showErrorMessage(message, ...buttons);
+    if (!choice) {
+        return undefined;
+    }
+
+    const action = options.find((o) => o.text === choice);
+    if (!action) {
+        return undefined;
+    }
+    if (action.kind === 'not-now') {
+        setSuppressed(settings);
+        return undefined;
+    }
+    return action;
 }

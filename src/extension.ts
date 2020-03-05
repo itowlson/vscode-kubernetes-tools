@@ -86,6 +86,7 @@ import { getImageBuildTool } from './components/config/config';
 import { ClusterExplorerNode, ClusterExplorerConfigurationValueNode, ClusterExplorerResourceNode, ClusterExplorerResourceFolderNode } from './components/clusterexplorer/node';
 import { create as activeContextTrackerCreate } from './components/contextmanager/active-context-tracker';
 import { WatchManager } from './components/kubectl/watch';
+import { initialiseSuppressionContext } from './utils/suppression';
 
 let explainActive = false;
 let swaggerSpecPromise: Promise<explainer.SwaggerModel | undefined> | null = null;
@@ -130,6 +131,8 @@ export const HELM_TPL_MODE: vscode.DocumentFilter = { language: "helm", scheme: 
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext): Promise<APIBroker> {
+    initialiseSuppressionContext(context);
+
     kubectl.checkPresent(CheckPresentMessageMode.Activation);
 
     const treeProvider = explorer.create(kubectl, host);
