@@ -28,7 +28,7 @@ import { useNamespaceKubernetes } from './components/kubectl/namespace';
 import { EventDisplayMode, getEvents } from './components/kubectl/events';
 import * as docker from './docker';
 import { kubeChannel } from './kubeChannel';
-import { CheckPresentMessageMode, create as kubectlCreate } from './kubectl';
+import { InvokeReason, create as kubectlCreate } from './kubectl';
 import * as kubectlUtils from './kubectlUtils';
 import * as explorer from './components/clusterexplorer/explorer';
 import * as helmRepoExplorer from './helm.repoExplorer';
@@ -133,7 +133,7 @@ export const HELM_TPL_MODE: vscode.DocumentFilter = { language: "helm", scheme: 
 export async function activate(context: vscode.ExtensionContext): Promise<APIBroker> {
     initialiseSuppressionContext(context);
 
-    kubectl.checkPresent(CheckPresentMessageMode.Activation);
+    kubectl.checkPresent(InvokeReason.ExtensionActivating);
 
     const treeProvider = explorer.create(kubectl, host);
     const helmRepoTreeProvider = helmRepoExplorer.create(host);
@@ -162,7 +162,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<APIBro
 
         // Commands - Kubernetes
         registerCommand('extension.vsKubernetesCreate',
-            () => maybeRunKubernetesCommandForActiveWindow('create', "Kubernetes Creating...")
+            () => maybeRunKubernetesCommandForActiveWindow(InvokeReason.UserCommand, 'create', "Kubernetes Creating...")
         ),
         registerCommand('extension.vsKubernetesCreateFile',
             (uri: vscode.Uri) => kubectlUtils.createResourceFromUri(uri, kubectl)),
@@ -218,8 +218,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<APIBro
         registerCommand('extension.vsKubernetesLoadConfigMapData', configmaps.loadConfigMapData),
         registerCommand('extension.vsKubernetesDeleteFile', (explorerNode: ClusterExplorerConfigurationValueNode) => { deleteKubernetesConfigFile(kubectl, explorerNode, treeProvider); }),
         registerCommand('extension.vsKubernetesAddFile', (explorerNode: ClusterExplorerResourceNode) => { addKubernetesConfigFile(kubectl, explorerNode, treeProvider); }),
-        registerCommand('extension.vsKubernetesShowEvents', (explorerNode: ClusterExplorerResourceNode) => { getEvents(kubectl, EventDisplayMode.Show, explorerNode); }),
-        registerCommand('extension.vsKubernetesFollowEvents', (explorerNode: ClusterExplorerResourceNode) => { getEvents(kubectl, EventDisplayMode.Follow, explorerNode); }),
+        registerCommand('extension.vsKubernetesShowEvents', (explorerNode: ClusterExplorerResourceNode) => { getEvents(kubectl, InvokeReason.UserCommand, EventDisplayMode.Show, explorerNode); }),
+        registerCommand('extension.vsKubernetesFollowEvents', (explorerNode: ClusterExplorerResourceNode) => { getEvents(kubectl, InvokeReason.UserCommand, EventDisplayMode.Follow, explorerNode); }),
         registerCommand('extension.vsKubernetesCronJobRunNow', cronJobRunNow),
         registerCommand('kubernetes.portForwarding.showSessions', () => portForwardStatusBarManager.showSessions()),
         // Commands - Helm
@@ -571,7 +571,7 @@ function initStatusBar() {
 // Expects that it can append a filename to 'command' to create a complete kubectl command.
 //
 // @parameter command string The command to run
-function maybeRunKubernetesCommandForActiveWindow(command: string, progressMessage: string) {
+function maybeRunKubernetesCommandForActiveWindow(reason: InvokeReason, command: string, progressMessage: string) {
     let text: string;
 
     const editor = vscode.window.activeTextEditor;
@@ -603,14 +603,14 @@ function maybeRunKubernetesCommandForActiveWindow(command: string, progressMessa
     if (editor.selection) {
         text = editor.document.getText(editor.selection);
         if (text.length > 0) {
-            kubectlViaTempFile(command, text, progressMessage, resultHandler);
+            kubectlViaTempFile(reason, command, text, progressMessage, resultHandler);
             return true;
         }
     }
     if (editor.document.isUntitled) {
         text = editor.document.getText();
         if (text.length > 0) {
-            kubectlViaTempFile(command, text, progressMessage, resultHandler);
+            kubectlViaTempFile(reason, command, text, progressMessage, resultHandler);
             return true;
         }
         return false;
@@ -628,7 +628,7 @@ function maybeRunKubernetesCommandForActiveWindow(command: string, progressMessa
                         vscode.window.showErrorMessage("Save failed.");
                         return;
                     }
-                    kubectlTextDocument(command, editor.document, progressMessage, resultHandler);
+                    kubectlTextDocument(reason, command, editor.document, progressMessage, resultHandler);
                 }, (err) => {
                     vscode.window.showErrorMessage(`Error saving: ${err}`);
                 });
@@ -636,7 +636,7 @@ function maybeRunKubernetesCommandForActiveWindow(command: string, progressMessa
         },
         (err) => vscode.window.showErrorMessage(`Error confirming save: ${err}`));
     } else {
-        kubectlTextDocument(command, editor.document, progressMessage, resultHandler);
+        kubectlTextDocument(reason, command, editor.document, progressMessage, resultHandler);
     }
     return true;
 }
@@ -647,20 +647,20 @@ function convertWindowsToWSL(filePath: string): string {
     return `/mnt/${drive}/${path}`;
 }
 
-function kubectlTextDocument(command: string, document: vscode.TextDocument, progressMessage: string, resultHandler: ShellHandler | undefined): void {
+function kubectlTextDocument(reason: InvokeReason, command: string, document: vscode.TextDocument, progressMessage: string, resultHandler: ShellHandler | undefined): void {
     if (document.uri.scheme === 'file') {
         let fileName = document.fileName;
         if (config.getUseWsl()) {
             fileName = convertWindowsToWSL(fileName);
         }
         const fullCommand = `${command} -f "${fileName}"`;
-        kubectl.invokeWithProgress(fullCommand, progressMessage, resultHandler);
+        kubectl.invokeWithProgress(reason, fullCommand, progressMessage, resultHandler);
     } else {
-        kubectlViaTempFile(command, document.getText(), progressMessage, resultHandler);
+        kubectlViaTempFile(reason, command, document.getText(), progressMessage, resultHandler);
     }
 }
 
-function kubectlViaTempFile(command: string, fileContent: string, progressMessage: string, handler?: ShellHandler) {
+function kubectlViaTempFile(reason: InvokeReason, command: string, fileContent: string, progressMessage: string, handler?: ShellHandler) {
     const tmpobj = tmp.fileSync();
     fs.writeFileSync(tmpobj.name, fileContent);
 
@@ -668,7 +668,7 @@ function kubectlViaTempFile(command: string, fileContent: string, progressMessag
     if (config.getUseWsl()) {
         fileName = convertWindowsToWSL(fileName);
     }
-    kubectl.invokeWithProgress(`${command} -f ${fileName}`, progressMessage, handler);
+    kubectl.invokeWithProgress(reason, `${command} -f ${fileName}`, progressMessage, handler);
 }
 
 /**
@@ -772,7 +772,7 @@ function exposeKubernetes() {
             cmd += ' --port=' + ports[0];
         }
 
-        kubectl.invokeWithProgress(cmd, "Kubernetes Exposing...");
+        kubectl.invokeWithProgress(InvokeReason.UserCommand, cmd, "Kubernetes Exposing...");
     });
 }
 
@@ -788,10 +788,10 @@ function getKubernetes(explorerNode?: any) {
         const node = explorerNode as ClusterExplorerResourceNode | ClusterExplorerResourceFolderNode;
         const id = kubectlId(node);
         const nsarg = (node.nodeType === explorer.NODE_TYPES.resource && node.namespace) ? `--namespace ${node.namespace}` : '';
-        kubectl.invokeInSharedTerminal(`get ${id} ${nsarg} -o wide`);
+        kubectl.invokeInSharedTerminal(InvokeReason.UserCommand, `get ${id} ${nsarg} -o wide`);
     } else {
         findKindNameOrPrompt(kuberesources.commonKinds, 'get', { nameOptional: true }, (value) => {
-            kubectl.invokeInSharedTerminal(` get ${value} -o wide`);
+            kubectl.invokeInSharedTerminal(InvokeReason.UserCommand, ` get ${value} -o wide`);
         });
     }
 }
@@ -938,12 +938,12 @@ function promptScaleKubernetes(kindName: string) {
 }
 
 function invokeScaleKubernetes(kindName: string, replicas: number) {
-    kubectl.invokeWithProgress(`scale --replicas=${replicas} ${kindName}`, "Kubernetes Scaling...");
+    kubectl.invokeWithProgress(InvokeReason.UserCommand, `scale --replicas=${replicas} ${kindName}`, "Kubernetes Scaling...");
 }
 
 function runKubernetes() {
     buildPushThenExec((name, image) => {
-        kubectl.invokeWithProgress(`run ${name} --image=${image}`, "Creating a Deployment...");
+        kubectl.invokeWithProgress(InvokeReason.UserCommand, `run ${name} --image=${image}`, "Creating a Deployment...");
     });
 }
 
@@ -1095,7 +1095,7 @@ interface QuickPickKindNameOptions {
 
 function quickPickKindNameFromKind(resourceKind: kuberesources.ResourceKind, opts: QuickPickKindNameOptions, handler: (kindName: string) => void) {
     const kind = resourceKind.abbreviation;
-    kubectl.invoke("get " + kind, (code, stdout, stderr) => {
+    kubectl.invoke(InvokeReason.UserCommand, "get " + kind, (code, stdout, stderr) => {
         if (code !== 0) {
             vscode.window.showErrorMessage(stderr);
             return;
@@ -1161,7 +1161,7 @@ function parseName(line: string): string {
     return line.split(' ')[0];
 }
 
-async function getContainers(resource: ContainerContainer): Promise<Container[] | undefined> {
+async function getContainers(reason: InvokeReason, resource: ContainerContainer): Promise<Container[] | undefined> {
     const q = shell.isWindows() ? `'` : `"`;
     const lit = (l: string) => `{${q}${l}${q}}`;
     const query = `${lit("NAME\\tIMAGE\\n")}{range ${resource.containersQueryPath}.containers[*]}{.name}${lit("\\t")}{.image}${lit("\\n")}{end}`;
@@ -1170,7 +1170,7 @@ async function getContainers(resource: ContainerContainer): Promise<Container[] 
     if (resource.namespace && resource.namespace.length > 0) {
         cmd += ' --namespace=' + resource.namespace;
     }
-    const containers = await kubectl.asLines(cmd);
+    const containers = await kubectl.asLines(reason, cmd);
     if (failed(containers)) {
         vscode.window.showErrorMessage("Failed to get containers in resource: " + containers.error[0]);
         return undefined;
@@ -1250,8 +1250,8 @@ async function describeKubernetes(explorerNode?: ClusterExplorerResourceNode) {
     if (explorerNode) {
         const nsarg = explorerNode.namespace ? `--namespace ${explorerNode.namespace}` : '';
         const cmd = `describe ${explorerNode.kindName} ${nsarg}`;
-        const result = await kubectl.invokeAsync(cmd);
-        const refresh = (): Promise<ShellResult | undefined> => kubectl.invokeAsync(cmd);
+        const result = await kubectl.invokeAsync(InvokeReason.UserCommand, cmd);
+        const refresh = (): Promise<ShellResult | undefined> => kubectl.invokeAsync(InvokeReason.UserCommand, cmd);
         if (result && result.code === 0) {
             DescribePanel.createOrShow(result.stdout, explorerNode.kindName, refresh);
         } else {
@@ -1261,9 +1261,9 @@ async function describeKubernetes(explorerNode?: ClusterExplorerResourceNode) {
         findKindNameOrPrompt(kuberesources.commonKinds, 'describe', { nameOptional: true }, async (value) => {
             const cmd = `describe ${value}`;
             const refresh = (): Promise<ShellResult | undefined> => {
-                return kubectl.invokeAsync(cmd);
+                return kubectl.invokeAsync(InvokeReason.UserCommand, cmd);
             };
-            const result = await kubectl.invokeAsync(cmd);
+            const result = await kubectl.invokeAsync(InvokeReason.UserCommand, cmd);
             if (result && result.code === 0) {
                 DescribePanel.createOrShow(result.stdout, value, refresh);
             } else {
@@ -1375,7 +1375,7 @@ async function execKubernetesCore(isTerminal: boolean): Promise<void> {
     }
 
     const execCmd = `exec ${pod.metadata.name} -c ${container.name} -- ${cmd}`;
-    kubectl.invokeInSharedTerminal(execCmd);
+    kubectl.invokeInSharedTerminal(InvokeReason.UserCommand, execCmd);
 }
 
 function execTerminalOnContainer(podName: string, podNamespace: string | undefined, containerName: string | undefined, terminalCmd: string) {
@@ -1388,7 +1388,7 @@ function execTerminalOnContainer(podName: string, podNamespace: string | undefin
     }
     terminalExecCmd.push('--', terminalCmd);
     const terminalName = `${terminalCmd} on ${podName}` + (containerName ? `/${containerName}`: '');
-    kubectl.runAsTerminal(terminalExecCmd, terminalName);
+    kubectl.runAsTerminal(InvokeReason.UserCommand, terminalExecCmd, terminalName);
 }
 
 async function syncKubernetes(): Promise<void> {
@@ -1458,7 +1458,7 @@ async function deleteKubernetes(delMode: KubernetesDeleteMode, explorerNode?: Cl
             }
         }
         const nsarg = explorerNode.namespace ? `--namespace ${explorerNode.namespace}` : '';
-        const shellResult = await kubectl.invokeAsyncWithProgress(`delete ${explorerNode.kindName} ${nsarg} ${delModeArg}`, `Deleting ${explorerNode.kindName}...`);
+        const shellResult = await kubectl.invokeAsyncWithProgress(InvokeReason.UserCommand, `delete ${explorerNode.kindName} ${nsarg} ${delModeArg}`, `Deleting ${explorerNode.kindName}...`);
         await reportDeleteResult(explorerNode.kindName, shellResult);
     } else {
         promptKindName(kuberesources.commonKinds, 'delete', { nameOptional: true }, async (kindName) => {
@@ -1467,7 +1467,7 @@ async function deleteKubernetes(delMode: KubernetesDeleteMode, explorerNode?: Cl
                 if (!containsName(kindName)) {
                     commandArgs = kindName + " --all";
                 }
-                const shellResult = await kubectl.invokeAsyncWithProgress(`delete ${commandArgs} ${delModeArg}`, `Deleting ${kindName}...`);
+                const shellResult = await kubectl.invokeAsyncWithProgress(InvokeReason.UserCommand, `delete ${commandArgs} ${delModeArg}`, `Deleting ${kindName}...`);
                 await reportDeleteResult(kindName, shellResult);
             }
         });

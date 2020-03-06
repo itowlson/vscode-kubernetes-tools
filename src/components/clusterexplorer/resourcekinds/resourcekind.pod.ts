@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import { ResourceNode } from '../node.resource';
-import { Kubectl } from '../../../kubectl';
+import { Kubectl, InvokeReason } from '../../../kubectl';
 import * as kubectlUtils from '../../../kubectlUtils';
 import { ClusterExplorerNode } from '../node';
 import { MessageNode } from '../node.message';
@@ -29,7 +29,7 @@ function getIconForPodStatus(status: string): vscode.Uri {
 export const podStatusChildSource = {
     async children(kubectl: Kubectl, parent: ResourceNode): Promise<ClusterExplorerNode[]> {
         const nsarg = parent.namespace ? `--namespace=${parent.namespace}` : '';
-        const result = await kubectl.asJson<Pod>(`get pods ${parent.name} ${nsarg} -o json`);
+        const result = await kubectl.asJson<Pod>(InvokeReason.UserClusterExplorerAction, `get pods ${parent.name} ${nsarg} -o json`);
         if (result.succeeded) {
             const pod = result.result;
             let ready = 0;

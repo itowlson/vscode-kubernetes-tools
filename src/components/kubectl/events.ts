@@ -1,4 +1,4 @@
-import { Kubectl } from '../../kubectl';
+import { Kubectl, InvokeReason } from '../../kubectl';
 import * as kubectlUtils from '../../kubectlUtils';
 import { ClusterExplorerResourceNode } from '../clusterexplorer/node';
 
@@ -7,7 +7,7 @@ export enum EventDisplayMode {
     Follow
 }
 
-export async function getEvents(kubectl: Kubectl, displayMode: EventDisplayMode, explorerNode?: ClusterExplorerResourceNode) {
+export async function getEvents(kubectl: Kubectl, reason: InvokeReason, displayMode: EventDisplayMode, explorerNode?: ClusterExplorerResourceNode) {
     let eventsNS;
 
     if (explorerNode) {
@@ -20,8 +20,8 @@ export async function getEvents(kubectl: Kubectl, displayMode: EventDisplayMode,
 
     if (displayMode === EventDisplayMode.Follow) {
         cmd += ' -w';
-        return kubectl.invokeInNewTerminal(cmd, 'Kubernetes Events');
+        return kubectl.invokeInNewTerminal(reason, cmd, 'Kubernetes Events');
     } else {
-        return kubectl.invokeInSharedTerminal(cmd);
+        return kubectl.invokeInSharedTerminal(reason, cmd);
     }
 }

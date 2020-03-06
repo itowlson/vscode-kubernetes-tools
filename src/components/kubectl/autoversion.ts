@@ -5,7 +5,7 @@ import * as download from '../download/download';
 import { Shell, shell } from "../../shell";
 import { Dictionary } from '../../utils/dictionary';
 import { fs } from '../../fs';
-import { Kubectl, CheckPresentMessageMode, createOnBinary as kubectlCreateOnBinary } from '../../kubectl';
+import { Kubectl, createOnBinary as kubectlCreateOnBinary, InvokeReason } from '../../kubectl';
 import { getCurrentContext } from '../../kubectlUtils';
 import { succeeded } from '../../errorable';
 import { FileBacked } from '../../utils/filebacked';
@@ -133,7 +133,7 @@ async function getServerVersion(kubectl: Kubectl, context: string): Promise<stri
     if (cachedVersions.versions[context]) {
         return cachedVersions.versions[context];
     }
-    const sr = await kubectl.invokeAsync('version -o json');
+    const sr = await kubectl.invokeAsync(InvokeReason.ClusterVersionCheck, 'version -o json');
     if (sr && sr.code === 0) {
         const versionInfo = JSON.parse(sr.stdout);
         if (versionInfo && versionInfo.serverVersion) {
@@ -151,7 +151,7 @@ function defaultClusterVersionCache(): ClusterVersionCache {
 }
 
 async function ensureBootstrapperKubectl(naiveKubectl: Kubectl, shell: Shell, host: Host): Promise<Kubectl | undefined> {
-    if (await naiveKubectl.checkPresent(CheckPresentMessageMode.Silent)) {
+    if (await naiveKubectl.checkPresent(InvokeReason.LocatingBinary)) {
         return naiveKubectl;
     }
 

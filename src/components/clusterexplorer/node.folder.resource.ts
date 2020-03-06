@@ -1,4 +1,4 @@
-import { Kubectl } from '../../kubectl';
+import { Kubectl, InvokeReason } from '../../kubectl';
 import { Host } from '../../host';
 import * as kuberesources from '../../kuberesources';
 import { failed } from '../../errorable';
@@ -25,7 +25,7 @@ export class ResourceFolderNode extends FolderNode implements ClusterExplorerRes
         if (lister) {
             return await lister.list(kubectl, this.kind);
         }
-        const childrenLines = await kubectl.asLines(`get ${this.kind.abbreviation}`);
+        const childrenLines = await kubectl.asLines(InvokeReason.UserClusterExplorerAction, `get ${this.kind.abbreviation}`);
         if (failed(childrenLines)) {
             host.showErrorMessage(childrenLines.error[0]);
             return [new MessageNode("Error")];

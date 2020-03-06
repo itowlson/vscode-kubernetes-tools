@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { Kubectl } from '../../kubectl';
+import { Kubectl, InvokeReason } from '../../kubectl';
 import { PodSummary, quickPickKindName, selectContainerForResource } from '../../extension';
 import { isPod } from '../../kuberesources.objectmodel';
 import * as kuberesources from '../../kuberesources';
@@ -26,10 +26,10 @@ export async function logsKubernetes(
     displayMode: LogsDisplayMode
 ) {
     if (explorerNode) {
-        return await getLogsForExplorerNode(kubectl, explorerNode, displayMode);
+        return await getLogsForExplorerNode(kubectl, InvokeReason.UserCommand, explorerNode, displayMode);
     }
 
-    return logsForPod(kubectl, displayMode);
+    return logsForPod(kubectl, InvokeReason.UserCommand, displayMode);
 }
 
 /**
@@ -37,6 +37,7 @@ export async function logsKubernetes(
  */
 async function getLogsForExplorerNode(
     kubectl: Kubectl,
+    reason: InvokeReason,
     explorerNode: ClusterExplorerResourceNode,
     displayMode: LogsDisplayMode
 ) {
@@ -45,24 +46,24 @@ async function getLogsForExplorerNode(
         return;
     }
 
-    return await getLogsForResource(kubectl, resource, displayMode);
+    return await getLogsForResource(kubectl, reason, resource, displayMode);
 }
 
 /**
  * Fetches logs for a pod. If there are more than one containers,
  * prompts the user for which container to fetch logs for.
  */
-async function getLogsForPod(kubectl: Kubectl, pod: PodSummary, displayMode: LogsDisplayMode) {
+async function getLogsForPod(kubectl: Kubectl, reason: InvokeReason, pod: PodSummary, displayMode: LogsDisplayMode) {
     const resource = {
         kindName: `pod/${pod.name}`,
         namespace: pod.namespace,
         containers: pod.spec ? pod.spec.containers : undefined,
         containersQueryPath: '.spec'
     };
-    return getLogsForResource(kubectl, resource, displayMode);
+    return getLogsForResource(kubectl, reason, resource, displayMode);
 }
 
-async function getLogsForResource(kubectl: Kubectl, resource: ContainerContainer, displayMode: LogsDisplayMode) {
+async function getLogsForResource(kubectl: Kubectl, reason: InvokeReason, resource: ContainerContainer, displayMode: LogsDisplayMode) {
     if (!resource) {
         vscode.window.showErrorMessage('Can\'t find the resource to get logs from!');
         return;
@@ -73,7 +74,7 @@ async function getLogsForResource(kubectl: Kubectl, resource: ContainerContainer
         return;
     }
 
-    await getLogsForContainer(kubectl, resource, container.name, displayMode);
+    await getLogsForContainer(kubectl, reason, resource, container.name, displayMode);
 }
 
 /**
@@ -81,6 +82,7 @@ async function getLogsForResource(kubectl: Kubectl, resource: ContainerContainer
  */
 async function getLogsForContainer(
     kubectl: Kubectl,
+    reason: InvokeReason,
     containerResource: ContainerContainer,
     containerName: string | undefined,
     displayMode: LogsDisplayMode
@@ -102,9 +104,9 @@ async function getLogsForContainer(
     if (logsDisplay() === LogsDisplay.Terminal) {
         if (displayMode === LogsDisplayMode.Follow) {
             const title = `Logs: ${containerResource.kindName}${containerName ? ('/' + containerName) : ''}`;
-            kubectl.invokeInNewTerminal(cmd, title);
+            kubectl.invokeInNewTerminal(reason, cmd, title);
         } else {
-            kubectl.invokeInSharedTerminal(cmd);
+            kubectl.invokeInSharedTerminal(reason, cmd);
         }
         return;
     }
@@ -114,7 +116,7 @@ async function getLogsForContainer(
 
     if (displayMode === LogsDisplayMode.Follow) {
         cmd = `${cmd} -f`;
-        kubectl.invokeAsync(cmd, undefined, (proc: ChildProcess) => {
+        kubectl.invokeAsync(reason, cmd, undefined, (proc: ChildProcess) => {
             proc.stdout.on('data', (data: string) => {
                 panel.addContent(data);
             });
@@ -123,7 +125,7 @@ async function getLogsForContainer(
     }
 
     try {
-        const result = await kubectl.invokeAsync(cmd);
+        const result = await kubectl.invokeAsync(reason, cmd);
         if (!result || result.code !== 0) {
             vscode.window.showErrorMessage(`Error reading logs: ${result ? result.stderr : undefined}`);
         } else {
@@ -138,20 +140,20 @@ async function getLogsForContainer(
  * Searches for a pod yaml spec from the open document
  * or from the currently selected namespace.
  */
-async function logsForPod(kubectl: Kubectl, displayMode: LogsDisplayMode): Promise<void> {
+async function logsForPod(kubectl: Kubectl, reason: InvokeReason, displayMode: LogsDisplayMode): Promise<void> {
     const editor = vscode.window.activeTextEditor;
 
     if (editor) {
-        return await logsForPodFromOpenDocument(kubectl, editor, displayMode);
+        return await logsForPodFromOpenDocument(kubectl, reason, editor, displayMode);
     }
 
-    return await logsForPodFromCurrentNamespace(kubectl, displayMode);
+    return await logsForPodFromCurrentNamespace(kubectl, reason, displayMode);
 }
 
 /**
  * Finds a Pod from the open editor.
  */
-async function logsForPodFromOpenDocument(kubectl: Kubectl, editor: vscode.TextEditor, displayMode: LogsDisplayMode) {
+async function logsForPodFromOpenDocument(kubectl: Kubectl, reason: InvokeReason, editor: vscode.TextEditor, displayMode: LogsDisplayMode) {
     const text = editor.document.getText();
     try {
         const obj: {} = yaml.safeLoad(text);
@@ -162,19 +164,19 @@ async function logsForPodFromOpenDocument(kubectl: Kubectl, editor: vscode.TextE
                 namespace: obj.metadata.namespace
             };
 
-            return await getLogsForPod(kubectl, podSummary, displayMode);
+            return await getLogsForPod(kubectl, reason, podSummary, displayMode);
         }
     } catch (ex) {
         // pass
     }
 
-    return await logsForPodFromCurrentNamespace(kubectl, displayMode);
+    return await logsForPodFromCurrentNamespace(kubectl, reason, displayMode);
 }
 
 /**
  * Alerts the user on pods available in the current namespace.
  */
-async function logsForPodFromCurrentNamespace(kubectl: Kubectl, displayMode: LogsDisplayMode) {
+async function logsForPodFromCurrentNamespace(kubectl: Kubectl, reason: InvokeReason, displayMode: LogsDisplayMode) {
     const namespace = await kubectlUtils.currentNamespace(kubectl);
 
     quickPickKindName(
@@ -187,7 +189,7 @@ async function logsForPodFromCurrentNamespace(kubectl: Kubectl, displayMode: Log
                 namespace: namespace // should figure out how to handle namespaces.
             };
 
-            await getLogsForPod(kubectl, podSummary, displayMode);
+            await getLogsForPod(kubectl, reason, podSummary, displayMode);
         }
     );
 }

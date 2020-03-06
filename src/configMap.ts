@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { basename } from 'path';
 import { fs } from './fs';
-import { Kubectl } from './kubectl';
+import { Kubectl, InvokeReason } from './kubectl';
 import * as kuberesources from './kuberesources';
 import { currentNamespace, DataHolder } from './kubectlUtils';
 import { deleteMessageItems, overwriteMessageItems } from './extension';
@@ -65,14 +65,14 @@ export async function deleteKubernetesConfigFile(kubectl: Kubectl, obj: ClusterE
         return;
     }
     const currentNS = await currentNamespace(kubectl);
-    const json = await kubectl.asJson<any>(`get ${obj.parentKind.abbreviation} ${obj.parentName} --namespace=${currentNS} -o json`);
+    const json = await kubectl.asJson<any>(InvokeReason.UserCommand, `get ${obj.parentKind.abbreviation} ${obj.parentName} --namespace=${currentNS} -o json`);
     if (failed(json)) {
         return;
     }
     const dataHolder = json.result;
     dataHolder.data = removeKey(dataHolder.data, obj.key);
     const out = JSON.stringify(dataHolder);
-    const shellRes = await kubectl.invokeAsync(`replace -f - --namespace=${currentNS}`, out);
+    const shellRes = await kubectl.invokeAsync(InvokeReason.UserCommand, `replace -f - --namespace=${currentNS}`, out);
     if (!shellRes || shellRes.code !== 0) {
         vscode.window.showErrorMessage('Failed to delete file: ' + (shellRes ? shellRes.stderr : "Unable to run kubectl"));
         return;
@@ -92,7 +92,7 @@ export async function addKubernetesConfigFile(kubectl: Kubectl, obj: ClusterExpl
     if (fileUris) {
         console.log(fileUris);
         const currentNS = await currentNamespace(kubectl);
-        const dataHolderJson = await kubectl.asJson<DataHolder>(`get ${obj.kind.abbreviation} ${obj.name} --namespace=${currentNS} -o json`);
+        const dataHolderJson = await kubectl.asJson<DataHolder>(InvokeReason.UserCommand, `get ${obj.kind.abbreviation} ${obj.name} --namespace=${currentNS} -o json`);
         if (failed(dataHolderJson)) {
             return;
         }
@@ -115,7 +115,7 @@ export async function addKubernetesConfigFile(kubectl: Kubectl, obj: ClusterExpl
             }
         });
         const out = JSON.stringify(dataHolder);
-        const shellRes = await kubectl.invokeAsync(`replace -f - --namespace=${currentNS}`, out);
+        const shellRes = await kubectl.invokeAsync(InvokeReason.UserCommand, `replace -f - --namespace=${currentNS}`, out);
         if (!shellRes || shellRes.code !== 0) {
             vscode.window.showErrorMessage('Failed to add file(s) to resource ${obj.id}: ' + (shellRes ? shellRes.stderr : "Unable to run kubectl"));
             return;

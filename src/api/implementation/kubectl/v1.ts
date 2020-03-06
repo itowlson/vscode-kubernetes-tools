@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 
 import { KubectlV1 } from "../../contract/kubectl/v1";
-import { Kubectl } from "../../../kubectl";
+import { Kubectl, InvokeReason } from "../../../kubectl";
 import { ChildProcess } from 'child_process';
 import { PortForwardStatusBarManager } from '../../../components/kubectl/port-forward-ui';
 
@@ -13,7 +13,7 @@ class KubectlV1Impl implements KubectlV1 {
     constructor(private readonly kubectl: Kubectl, private readonly portForwardStatusBarManager: PortForwardStatusBarManager) {}
 
     invokeCommand(command: string): Promise<KubectlV1.ShellResult | undefined> {
-        return this.kubectl.invokeAsync(command);
+        return this.kubectl.invokeAsync(InvokeReason.InvokedViaAPI, command);
     }
 
     // TODO: move into core kubectl module
@@ -21,7 +21,7 @@ class KubectlV1Impl implements KubectlV1 {
     async portForward(podName: string, podNamespace: string | undefined, localPort: number, remotePort: number, options: KubectlV1.PortForwardOptions): Promise<vscode.Disposable | undefined> {
         const nsarg = podNamespace ? ['--namespace', podNamespace] : [];
         const cmd = ['port-forward', podName, `${localPort}:${remotePort}`, ...nsarg];
-        const pfProcess = await this.kubectl.spawnAsChild(cmd);
+        const pfProcess = await this.kubectl.spawnAsChild(InvokeReason.InvokedViaAPI, cmd);
         if (!pfProcess) {
             return undefined;
         }

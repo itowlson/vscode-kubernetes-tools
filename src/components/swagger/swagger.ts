@@ -1,13 +1,13 @@
 import * as download from '../../components/download/download';
 import { Errorable, failed } from "../../errorable";
-import { Kubectl } from "../../kubectl";
+import { Kubectl, InvokeReason } from "../../kubectl";
 import { proxy } from "../kubectl/proxy";
 import { fs } from '../../fs';
 
 export type Swagger = any;
 
 export async function getClusterSwagger(kubectl: Kubectl): Promise<Errorable<Swagger>> {
-    const proxyResult = await proxy(kubectl, 'random');
+    const proxyResult = await proxy(kubectl, InvokeReason.BackgroundFetchSchema, 'random');
     if (failed(proxyResult)) {
         return proxyResult;
     }

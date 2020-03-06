@@ -14,23 +14,23 @@ import { updateYAMLSchema } from './yaml-support/yaml-schema';
 const KUBECTL_OUTPUT_COLUMN_SEPARATOR = /\s\s+/g;
 
 export interface Kubectl {
-    checkPresent(errorMessageMode: CheckPresentMessageMode): Promise<boolean>;
-    invoke(command: string, handler?: ShellHandler): Promise<void>;
-    invokeWithProgress(command: string, progressMessage: string, handler?: ShellHandler): Promise<void>;
-    invokeAsync(command: string, stdin?: string, callback?: (proc: ChildProcess) => void): Promise<ShellResult | undefined>;
-    invokeAsyncWithProgress(command: string, progressMessage: string): Promise<ShellResult | undefined>;
-    spawnAsChild(command: string[]): Promise<ChildProcess | undefined>;
+    checkPresent(reason: InvokeReason): Promise<boolean>;
+    invoke(reason: InvokeReason, command: string, handler?: ShellHandler): Promise<void>;
+    invokeWithProgress(reason: InvokeReason, command: string, progressMessage: string, handler?: ShellHandler): Promise<void>;
+    invokeAsync(reason: InvokeReason, command: string, stdin?: string, callback?: (proc: ChildProcess) => void): Promise<ShellResult | undefined>;
+    invokeAsyncWithProgress(reason: InvokeReason, command: string, progressMessage: string): Promise<ShellResult | undefined>;
+    spawnAsChild(reason: InvokeReason, command: string[]): Promise<ChildProcess | undefined>;
     /**
      * Invoke a kubectl command in Terminal.
      * @param command the subcommand to run.
      * @param terminalName if empty, run the command in the shared Terminal; otherwise run it in a new Terminal.
      */
-    invokeInNewTerminal(command: string, terminalName: string, onClose?: (e: Terminal) => any, pipeTo?: string): Promise<Disposable>;
-    invokeInSharedTerminal(command: string): Promise<void>;
-    runAsTerminal(command: string[], terminalName: string): Promise<void>;
-    asLines(command: string): Promise<Errorable<string[]>>;
-    fromLines(command: string): Promise<Errorable<{ [key: string]: string }[]>>;
-    asJson<T>(command: string): Promise<Errorable<T>>;
+    invokeInNewTerminal(reason: InvokeReason, command: string, terminalName: string, onClose?: (e: Terminal) => any, pipeTo?: string): Promise<Disposable>;
+    invokeInSharedTerminal(reason: InvokeReason, command: string): Promise<void>;
+    runAsTerminal(reason: InvokeReason, command: string[], terminalName: string): Promise<void>;
+    asLines(reason: InvokeReason, command: string): Promise<Errorable<string[]>>;
+    fromLines(reason: InvokeReason, command: string): Promise<Errorable<{ [key: string]: string }[]>>;
+    asJson<T>(reason: InvokeReason, command: string): Promise<Errorable<T>>;
 }
 
 interface Context {
@@ -59,45 +59,45 @@ class KubectlImpl implements Kubectl {
     private readonly context: Context;
     private sharedTerminal: Terminal | null = null;
 
-    checkPresent(errorMessageMode: CheckPresentMessageMode): Promise<boolean> {
-        return checkPresent(this.context, errorMessageMode);
+    checkPresent(reason: InvokeReason): Promise<boolean> {
+        return checkPresent(this.context, reason);
     }
-    invoke(command: string, handler?: ShellHandler): Promise<void> {
-        return invoke(this.context, command, handler);
+    invoke(reason: InvokeReason, command: string, handler?: ShellHandler): Promise<void> {
+        return invoke(this.context, reason, command, handler);
     }
-    invokeWithProgress(command: string, progressMessage: string, handler?: ShellHandler): Promise<void> {
-        return invokeWithProgress(this.context, command, progressMessage, handler);
+    invokeWithProgress(reason: InvokeReason, command: string, progressMessage: string, handler?: ShellHandler): Promise<void> {
+        return invokeWithProgress(this.context, reason, command, progressMessage, handler);
     }
-    invokeAsync(command: string, stdin?: string, callback?: (proc: ChildProcess) => void): Promise<ShellResult | undefined> {
-        return invokeAsync(this.context, command, stdin, callback);
+    invokeAsync(reason: InvokeReason, command: string, stdin?: string, callback?: (proc: ChildProcess) => void): Promise<ShellResult | undefined> {
+        return invokeAsync(this.context, reason, command, stdin, callback);
     }
-    invokeAsyncWithProgress(command: string, progressMessage: string): Promise<ShellResult | undefined> {
-        return invokeAsyncWithProgress(this.context, command, progressMessage);
+    invokeAsyncWithProgress(reason: InvokeReason, command: string, progressMessage: string): Promise<ShellResult | undefined> {
+        return invokeAsyncWithProgress(this.context, reason, command, progressMessage);
     }
-    spawnAsChild(command: string[]): Promise<ChildProcess | undefined> {
-        return spawnAsChild(this.context, command);
+    spawnAsChild(reason: InvokeReason, command: string[]): Promise<ChildProcess | undefined> {
+        return spawnAsChild(this.context, reason, command);
     }
-    async invokeInNewTerminal(command: string, terminalName: string, onClose?: (e: Terminal) => any, pipeTo?: string): Promise<Disposable> {
+    async invokeInNewTerminal(reason: InvokeReason, command: string, terminalName: string, onClose?: (e: Terminal) => any, pipeTo?: string): Promise<Disposable> {
         const terminal = this.context.host.createTerminal(terminalName);
         const disposable = onClose ? this.context.host.onDidCloseTerminal(onClose) : new Disposable(() => {});
-        await invokeInTerminal(this.context, command, pipeTo, terminal);
+        await invokeInTerminal(this.context, reason, command, pipeTo, terminal);
         return disposable;
     }
-    invokeInSharedTerminal(command: string): Promise<void> {
+    invokeInSharedTerminal(reason: InvokeReason, command: string): Promise<void> {
         const terminal = this.getSharedTerminal();
-        return invokeInTerminal(this.context, command, undefined, terminal);
+        return invokeInTerminal(this.context, reason, command, undefined, terminal);
     }
-    runAsTerminal(command: string[], terminalName: string): Promise<void> {
-        return runAsTerminal(this.context, command, terminalName);
+    runAsTerminal(reason: InvokeReason, command: string[], terminalName: string): Promise<void> {
+        return runAsTerminal(this.context, reason, command, terminalName);
     }
-    asLines(command: string): Promise<Errorable<string[]>> {
-        return asLines(this.context, command);
+    asLines(reason: InvokeReason, command: string): Promise<Errorable<string[]>> {
+        return asLines(this.context, reason, command);
     }
-    fromLines(command: string): Promise<Errorable<{ [key: string]: string }[]>> {
-        return fromLines(this.context, command);
+    fromLines(reason: InvokeReason, command: string): Promise<Errorable<{ [key: string]: string }[]>> {
+        return fromLines(this.context, reason, command);
     }
-    asJson<T>(command: string): Promise<Errorable<T>> {
-        return asJson(this.context, command);
+    asJson<T>(reason: InvokeReason, command: string): Promise<Errorable<T>> {
+        return asJson(this.context, reason, command);
     }
     private getSharedTerminal(): Terminal {
         if (!this.sharedTerminal) {
@@ -140,49 +140,57 @@ export function createOnBinary(host: Host, fs: FS, shell: Shell, bin: string): K
     return new KubectlImpl(host, fs, shell, () => {}, pathfinder, false);
 }
 
-export enum CheckPresentMessageMode {
-    Command,
-    Activation,
-    Silent,
+export enum InvokeReason {
+    ExtensionActivating,
+    LocatingBinary,
+    UserCommand,
+    UserClusterExplorerAction,
+    BackgroundFetchSchema,
+    BackgroundClusterStatus,
+    ClusterVersionCheck,
+    InvokedViaAPI,
+    MysteryReason,
 }
 
-async function checkPresent(context: Context, errorMessageMode: CheckPresentMessageMode): Promise<boolean> {
+async function checkPresent(context: Context, reason: InvokeReason): Promise<boolean> {
     if (context.binFound || context.pathfinder) {
         return true;
     }
 
-    return await checkForKubectlInternal(context, errorMessageMode);
+    return await checkForKubectlInternal(context, reason);
 }
 
-async function checkForKubectlInternal(context: Context, errorMessageMode: CheckPresentMessageMode): Promise<boolean> {
+async function checkForKubectlInternal(context: Context, reason: InvokeReason): Promise<boolean> {
     const binName = 'kubectl';
     const bin = getToolPath(context.host, context.shell, binName);
 
-    const contextMessage = getCheckKubectlContextMessage(errorMessageMode);
+    const contextMessage = getCheckKubectlContextMessage(reason);
     const inferFailedMessage = `Could not find "${binName}" binary.${contextMessage}`;
     const configuredFileMissingMessage = `${bin} does not exist! ${contextMessage}`;
 
     return await binutil.checkForBinary(context, bin, binName, inferFailedMessage, configuredFileMissingMessage, errorMessageMode !== CheckPresentMessageMode.Silent);
 }
 
-function getCheckKubectlContextMessage(errorMessageMode: CheckPresentMessageMode): string {
-    if (errorMessageMode === CheckPresentMessageMode.Activation) {
+function getCheckKubectlContextMessage(reason: InvokeReason): string {
+    if (reason === InvokeReason.ExtensionActivating) {
         return ' Kubernetes commands other than configuration will not function correctly.';
-    } else if (errorMessageMode === CheckPresentMessageMode.Command) {
+    } else if (reason === InvokeReason.UserCommand) {
         return ' Cannot execute command.';
+    } else if (reason === InvokeReason.UserClusterExplorerAction) {
+        return ' Cannot update display.';
     }
     return '';
 }
 
-async function invoke(context: Context, command: string, handler?: ShellHandler): Promise<void> {
-    await kubectlInternal(context, command, handler || kubectlDone(context));
+async function invoke(context: Context, reason: InvokeReason, command: string, handler?: ShellHandler): Promise<void> {
+    await kubectlInternal(context, reason, command, handler || kubectlDone(context));
 }
 
-async function invokeWithProgress(context: Context, command: string, progressMessage: string, handler?: ShellHandler): Promise<void> {
+async function invokeWithProgress(context: Context, reason: InvokeReason, command: string, progressMessage: string, handler?: ShellHandler): Promise<void> {
     return context.host.withProgress((p) => {
         return new Promise<void>((resolve) => {
             p.report({ message: progressMessage });
-            kubectlInternal(context, command, (code, stdout, stderr) => {
+            kubectlInternal(context, reason, command, (code, stdout, stderr) => {
                 resolve();
                 (handler || kubectlDone(context))(code, stdout, stderr);
             });
@@ -190,8 +198,8 @@ async function invokeWithProgress(context: Context, command: string, progressMes
     });
 }
 
-async function invokeAsync(context: Context, command: string, stdin?: string, callback?: (proc: ChildProcess) => void): Promise<ShellResult | undefined> {
-    if (await checkPresent(context, CheckPresentMessageMode.Command)) {
+async function invokeAsync(context: Context, reason: InvokeReason, command: string, stdin?: string, callback?: (proc: ChildProcess) => void): Promise<ShellResult | undefined> {
+    if (await checkPresent(context, reason)) {
         const bin = await baseKubectlPath(context);
         const cmd = `${bin} ${command}`;
         let sr: ShellResult | undefined;
@@ -217,26 +225,26 @@ async function checkPossibleIncompatibility(context: Context): Promise<void> {
         return;
     }
     checkedCompatibility = true;
-    const compat = await compatibility.check((cmd) => asJson<compatibility.Version>(context, cmd));
+    const compat = await compatibility.check((cmd) => asJson<compatibility.Version>(context, InvokeReason.ClusterVersionCheck, cmd));
     if (!compatibility.isGuaranteedCompatible(compat) && compat.didCheck) {
         const versionAlert = `kubectl version ${compat.clientVersion} may be incompatible with cluster Kubernetes version ${compat.serverVersion}`;
         context.host.showWarningMessage(versionAlert);
     }
 }
 
-async function invokeAsyncWithProgress(context: Context, command: string, progressMessage: string): Promise<ShellResult | undefined> {
-    return context.host.longRunning(progressMessage, () => invokeAsync(context, command));
+async function invokeAsyncWithProgress(context: Context, reason: InvokeReason, command: string, progressMessage: string): Promise<ShellResult | undefined> {
+    return context.host.longRunning(progressMessage, () => invokeAsync(context, reason, command));
 }
 
-async function spawnAsChild(context: Context, command: string[]): Promise<ChildProcess | undefined> {
-    if (await checkPresent(context, CheckPresentMessageMode.Command)) {
+async function spawnAsChild(context: Context, reason: InvokeReason, command: string[]): Promise<ChildProcess | undefined> {
+    if (await checkPresent(context, reason)) {
         return spawnChildProcess(await path(context), command, context.shell.execOpts());
     }
     return undefined;
 }
 
-async function invokeInTerminal(context: Context, command: string, pipeTo: string | undefined, terminal: Terminal): Promise<void> {
-    if (await checkPresent(context, CheckPresentMessageMode.Command)) {
+async function invokeInTerminal(context: Context, reason: InvokeReason, command: string, pipeTo: string | undefined, terminal: Terminal): Promise<void> {
+    if (await checkPresent(context, reason)) {
         // You might be tempted to think we needed to add 'wsl' here if user is using wsl
         // but this runs in the context of a vanilla terminal, which is controlled by the
         // existing preference, so it's not necessary.
@@ -248,8 +256,8 @@ async function invokeInTerminal(context: Context, command: string, pipeTo: strin
     }
 }
 
-async function runAsTerminal(context: Context, command: string[], terminalName: string): Promise<void> {
-    if (await checkPresent(context, CheckPresentMessageMode.Command)) {
+async function runAsTerminal(context: Context, reason: InvokeReason, command: string[], terminalName: string): Promise<void> {
+    if (await checkPresent(context, reason)) {
         let execPath = await path(context);
         const cmd = command;
         if (getUseWsl()) {
@@ -262,8 +270,8 @@ async function runAsTerminal(context: Context, command: string[], terminalName: 
     }
 }
 
-async function kubectlInternal(context: Context, command: string, handler: ShellHandler): Promise<void> {
-    if (await checkPresent(context, CheckPresentMessageMode.Command)) {
+async function kubectlInternal(context: Context, reason: InvokeReason, command: string, handler: ShellHandler): Promise<void> {
+    if (await checkPresent(context, reason)) {
         const bin = await baseKubectlPath(context);
         const cmd = `${bin} ${command}`;
         const sr = await context.shell.exec(cmd);
@@ -306,8 +314,8 @@ async function baseKubectlPath(context: Context): Promise<string> {
     return bin;
 }
 
-async function asLines(context: Context, command: string): Promise<Errorable<string[]>> {
-    const shellResult = await invokeAsync(context, command);
+async function asLines(context: Context, reason: InvokeReason, command: string): Promise<Errorable<string[]>> {
+    const shellResult = await invokeAsync(context, reason, command);
     if (!shellResult) {
         return { succeeded: false, error: [`Unable to run command (${command})`] };
     }
@@ -322,8 +330,8 @@ async function asLines(context: Context, command: string): Promise<Errorable<str
     return { succeeded: false, error: [ shellResult.stderr ] };
 }
 
-async function fromLines(context: Context, command: string): Promise<Errorable<{ [key: string]: string }[]>> {
-    const shellResult = await invokeAsync(context, command);
+async function fromLines(context: Context, reason: InvokeReason, command: string): Promise<Errorable<{ [key: string]: string }[]>> {
+    const shellResult = await invokeAsync(context, reason, command);
     if (!shellResult) {
         return { succeeded: false, error: [`Unable to run command (${command})`] };
     }
@@ -337,8 +345,8 @@ async function fromLines(context: Context, command: string): Promise<Errorable<{
     return { succeeded: false, error: [ shellResult.stderr ] };
 }
 
-async function asJson<T>(context: Context, command: string): Promise<Errorable<T>> {
-    const shellResult = await invokeAsync(context, command);
+async function asJson<T>(context: Context, reason: InvokeReason, command: string): Promise<Errorable<T>> {
+    const shellResult = await invokeAsync(context, reason, command);
     if (!shellResult) {
         return { succeeded: false, error: [`Unable to run command (${command})`] };
     }
