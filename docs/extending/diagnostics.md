@@ -25,7 +25,7 @@ the rest of this article goes into detail.
 
 | Component                | Responsibilities                                                                    |
 |--------------------------|-------------------------------------------------------------------------------------|
-| Your extension           | Activate in response to `yaml`, `json` and `helm` language documents                |
+| Your extension           | Activate in response to `yaml` and `json` language documents                        |
 |                          | Register diagnostics contributor(s) with Kubernetes extension                       |
 | Diagnostics contributor  | Implement the diagnostics contributor interface                                     |
 | Kubernetes extension     | Run the diagnostics contributor whenever a Kubernetes manifest is opened or changed |
@@ -140,7 +140,7 @@ function analyse(document: vscode.TextDocument): vscode.Diagnostic[] {
 
     // 'evaluate' runs 'checkImageApproved' on all string values in the manifest(s)
     // and concatenates the results
-    return kp.evaluate(parses, { onString: checkImageApproved })
+    return kp.evaluate(parses, { onString: checkImageApproved });
 
     // The actual checker. 'evaluate' runs it for every string value in the manifest,
     // and it yields a diagnostic if the string is an image that isn't from an approved
