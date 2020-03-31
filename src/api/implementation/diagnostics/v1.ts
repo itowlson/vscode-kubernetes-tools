@@ -5,6 +5,7 @@ import { DiagnosticsV1 } from '../../contract/diagnostics/v1';
 import { registerLinter, Linter } from '../../../components/lint/linters';
 import { cantHappen } from '../../../utils/never';
 import { flatten } from '../../../utils/array';
+import * as lintedit from '../../../components/lint/edit';
 
 export function impl(refresh: (document: vscode.TextDocument) => {}): DiagnosticsV1 {
     return new DiagnosticsV1Impl(refresh);
@@ -46,6 +47,18 @@ function asLinter(diagnosticContributor: DiagnosticsV1.DiagnosticsContributor): 
     };
 }
 
+interface KindableDiagnostic {
+    readonly diagnosticKind: string;
+}
+
+class EasyModeDiagnostic extends vscode.Diagnostic implements KindableDiagnostic {
+    readonly diagnosticKind = 'k8s-easy-mode';
+    constructor(range: vscode.Range, message: string, severity: vscode.DiagnosticSeverity | undefined, code: string | number | undefined, readonly metadata: any) {
+        super(range, message, severity);
+        this.code = code;
+    }
+}
+
 function isDocumentDiagnoser(o: DiagnosticsV1.DiagnosticsContributor2): o is DiagnosticsV1.DocumentDiagnoser {
     return !!((o as DiagnosticsV1.DocumentDiagnoser).analyseDocument);
 }
@@ -72,7 +85,7 @@ function asLinter2(diagnosticContributor: DiagnosticsV1.DiagnosticsContributor2)
     return {
         name,
         lint: makeLintFunction(diagnosticContributor),
-        codeActions: async function (_document: vscode.TextDocument, _range: vscode.Range, _context: vscode.CodeActionContext) { return []; }
+        codeActions: makeCodeActionsFunction(diagnosticContributor) || (async (_d, _r, _c) => Array.of<vscode.Command | vscode.CodeAction>())
     };
 }
 
@@ -95,11 +108,53 @@ function makeLintFunction(diagnosticContributor: DiagnosticsV1.DiagnosticsContri
     return cantHappen(diagnosticContributor);
 }
 
+type CodeActionsFunction = ((document: vscode.TextDocument, range: vscode.Range, context: vscode.CodeActionContext) => Promise<(vscode.Command | vscode.CodeAction)[]>) | undefined;
+
+function makeCodeActionsFunction(diagnosticContributor: DiagnosticsV1.DiagnosticsContributor2): CodeActionsFunction {
+    if (isDocumentDiagnoser(diagnosticContributor)) {
+        return diagnosticContributor.codeActions;
+    }
+    return makeEasyModeDiagnoserCodeActionsFunction(diagnosticContributor.codeActions);
+}
+
 function arrayOf<T>(items: T[] | IterableIterator<T>): T[] {
     if (Array.isArray(items)) {
         return items;
     }
     return Array.of(...items);
+}
+
+function isNativeAction(ema: DiagnosticsV1.EasyModeAction): ema is vscode.CodeAction {
+    return !!((ema as any).edit) || !!((ema as any).command);
+}
+
+function codeActionOf(ema: DiagnosticsV1.EasyModeAction, document: vscode.TextDocument, parsedDocument: kp.ResourceParse[]): vscode.CodeAction {
+    if (isNativeAction(ema)) {
+        return ema;
+    }
+    const edit = new vscode.WorkspaceEdit();
+    for (const e of ema.edits) {
+        switch (e.kind) {
+            case 'insert':
+                edit.insert(document.uri, document.positionAt(e.at), e.text);
+                break;
+            case 'merge':
+                lintedit.merge(edit, document, parsedDocument, e.into, e.value);
+                break;
+            default:
+                cantHappen(e);
+                break;
+            // case 'insert-map-entry':
+            //     lintedit.appendMapEntries(edit, document, e.under, e.mapEntry);
+            //     // const map = e.under;
+            //     // const mapRange = new vscode.Range(document.positionAt(map.range.start), document.positionAt(map.range.end));
+            //     // edit.replace(document.uri, range, newText);
+            //     break;
+        }
+    }
+    const a = new vscode.CodeAction(ema.title, vscode.CodeActionKind.QuickFix);
+    a.edit = edit;
+    return a;
 }
 
 function makeDocumentDiagnoserLintFunction(diagnosticContributor: DiagnosticsV1.DocumentDiagnoser): (document: vscode.TextDocument) => Promise<vscode.Diagnostic[]> {
@@ -123,7 +178,36 @@ function makeResourceParsesDiagnoserLintFunction(diagnosticContributor: Diagnost
         }
 
         const diags = await diagnosticContributor.analyseResourceParses(parses);
-        return arrayOf(diags).map((d) => { const diag = new vscode.Diagnostic(rangeOf(d.range), d.message, d.severity); diag.code = d.code; return diag; });
+        return arrayOf(diags).map((d) => new EasyModeDiagnostic(rangeOf(d.range), d.message, d.severity, d.code, d.metadata));
+    };
+}
+
+function makeEasyModeDiagnoserCodeActionsFunction(impl: ((parses: ReadonlyArray<kp.ResourceParse>, range: kp.Range, diagnostics: DiagnosticsV1.EasyMode[]) => Promise<DiagnosticsV1.EasyModeAction[]>) | undefined): CodeActionsFunction {
+    if (!impl) {
+        return undefined;
+    }
+
+    return async function(document: vscode.TextDocument, range: vscode.Range, context: vscode.CodeActionContext): Promise<(vscode.Command | vscode.CodeAction)[]> {
+        function unrangeOf(r: vscode.Range): kp.Range {
+            return { start: document.offsetAt(r.start), end: document.offsetAt(r.end) };
+        }
+
+        // TODO: could cache in a diagnostic?
+        const text = document.getText();
+        const parses = (document.languageId === 'yaml' ? kp.parseYAML(text) :
+                       (document.languageId === 'json' ? kp.parseJSON(text) :
+                        []));
+        if (parses.length === 0) {
+            return [];
+        }
+
+        const emdiags = context.diagnostics
+                               .filter((d) => (d as unknown as KindableDiagnostic).diagnosticKind === 'k8s-easy-mode')
+                               .map((d) => ({ range: unrangeOf(d.range), message: d.message, severity: d.severity, code: d.code, metadata: (d as EasyModeDiagnostic).metadata }));
+
+        const emas = await impl(parses, unrangeOf(range), emdiags);
+
+        return emas.map((ema) => codeActionOf(ema, document, parses));
     };
 }
 
@@ -146,7 +230,7 @@ function makeResourceParseDiagnoserLintFunction(diagnosticContributor: Diagnosti
         const diagsArray = await Promise.all(diagPromises);
         const diagsArray2 = diagsArray.map((c) => arrayOf(c));
         const diags = flatten(...diagsArray2);
-        return diags.map((d) => { const diag = new vscode.Diagnostic(rangeOf(d.range), d.message, d.severity); diag.code = d.code; return diag; });
+        return diags.map((d) => new EasyModeDiagnostic(rangeOf(d.range), d.message, d.severity, d.code, d.metadata));
     };
 }
 
@@ -169,7 +253,7 @@ function makeResourceDiagnoserLintFunction(diagnosticContributor: DiagnosticsV1.
         const diagsArray = await Promise.all(diagPromises);
         const diagsArray2 = diagsArray.map((c) => arrayOf(c));
         const diags = flatten(...diagsArray2);
-        return diags.map((d) => { const diag = new vscode.Diagnostic(rangeOf(d.range), d.message, d.severity); diag.code = d.code; return diag; });
+        return diags.map((d) => new EasyModeDiagnostic(rangeOf(d.range), d.message, d.severity, d.code, d.metadata));
     };
 }
 
@@ -189,6 +273,6 @@ function makeResourceParseEvaluatorDiagnoserLintFunction(diagnosticContributor: 
         }
 
         const diags = kp.evaluate(resources, diagnosticContributor.evaluator);
-        return diags.map((d) => { const diag = new vscode.Diagnostic(rangeOf(d.range), d.message, d.severity); diag.code = d.code; return diag; });
+        return diags.map((d) => new EasyModeDiagnostic(rangeOf(d.range), d.message, d.severity, d.code, d.metadata));
     };
 }

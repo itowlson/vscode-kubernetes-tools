@@ -26,30 +26,28 @@ export namespace DiagnosticsV1 {
     export interface ResourceParsesDiagnoser {
         readonly name: string;
         analyseResourceParses(parses: ReadonlyArray<kp.ResourceParse>): EasyMode[] | IterableIterator<EasyMode> | Promise<EasyMode[]> | Promise<IterableIterator<EasyMode>>;
-        // TODO: vscode.CodeActionContext may not work well here because it provides a vscode.Diagnostic which has a vscode.Range.  But maybe that's okay as we have a kp.Range as well.
-        // TODO: do we need the VS Code TextDocument for URIing etc.?
-        codeActions?(parses: ReadonlyArray<kp.ResourceParse>, range: kp.Range, context: vscode.CodeActionContext): Promise<(vscode.Command | vscode.CodeAction)[]>;
+        codeActions?(parses: ReadonlyArray<kp.ResourceParse>, range: kp.Range, diagnostics: EasyMode[]): Promise<EasyModeAction[]>;
     }
 
     export interface ResourceParseDiagnoser {
         readonly name: string;
         readonly manifestKind?: string;
         analyseResourceParse(parse: kp.ResourceParse): EasyMode[] | IterableIterator<EasyMode> | Promise<EasyMode[]> | Promise<IterableIterator<EasyMode>>;
-        codeActions?(parse: kp.ResourceParse, range: kp.Range, context: vscode.CodeActionContext): Promise<(vscode.Command | vscode.CodeAction)[]>;
+        codeActions?(parses: ReadonlyArray<kp.ResourceParse>, range: kp.Range, diagnostics: EasyMode[]): Promise<EasyModeAction[]>;
     }
 
     export interface ResourceDiagnoser {
         readonly name: string;
         readonly manifestKind?: string;
         analyseResource(resource: kp.MapTraversalEntry): EasyMode[] | IterableIterator<EasyMode> | Promise<EasyMode[]> | Promise<IterableIterator<EasyMode>>;
-        codeActions?(parse: kp.ResourceParse, range: kp.Range, context: vscode.CodeActionContext): Promise<(vscode.Command | vscode.CodeAction)[]>;
+        codeActions?(parses: ReadonlyArray<kp.ResourceParse>, range: kp.Range, diagnostics: EasyMode[]): Promise<EasyModeAction[]>;
     }
 
     export interface ResourceParseEvaluatorDiagnoser {
         readonly name: string;
         readonly manifestKind?: string;
         readonly evaluator: kp.ResourceEvaluator<EasyMode>;
-        codeActions?(parse: kp.ResourceParse, range: kp.Range, context: vscode.CodeActionContext): Promise<(vscode.Command | vscode.CodeAction)[]>;
+        codeActions?(parses: ReadonlyArray<kp.ResourceParse>, range: kp.Range, diagnostics: EasyMode[]): Promise<EasyModeAction[]>;
     }
 
     export type DiagnosticsContributor2 = DocumentDiagnoser | ResourceParsesDiagnoser | ResourceParseDiagnoser | ResourceParseEvaluatorDiagnoser | ResourceDiagnoser;
@@ -59,5 +57,27 @@ export namespace DiagnosticsV1 {
         readonly message: string;
         readonly severity?: vscode.DiagnosticSeverity;
         readonly code?: string | number;
+        readonly metadata?: any;
     }
+
+    export interface EasyModeAction1 {
+        readonly title: string;
+        readonly edits: EasyModeEdit[];
+    }
+
+    export type EasyModeAction = EasyModeAction1 | vscode.CodeAction;
+
+    export type EasyModeEdit = {
+        readonly kind: 'insert';
+        readonly at: number;
+        readonly text: string;
+    } | {
+    //     readonly kind: 'insert-map-entry';
+    //     readonly under: kp.MapValue;
+    //     readonly mapEntry: any;
+    // } | {
+        readonly kind: 'merge';
+        readonly into: kp.MapTraversalEntry | kp.MapValue;
+        readonly value: object;
+    };
 }
