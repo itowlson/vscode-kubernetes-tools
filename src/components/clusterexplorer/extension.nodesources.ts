@@ -36,11 +36,12 @@ export class CustomResourceFolderNodeSource extends NodeSourceImpl {
 }
 
 export class CustomGroupingFolderNodeSource extends NodeSourceImpl {
-    constructor(private readonly displayName: string, private readonly contextValue: string | undefined, private readonly children: NodeSourceImpl[]) {
+    constructor(private readonly displayName: string, private readonly contextValue: string | undefined, private readonly children: () => Promise<NodeSourceImpl[]>) {
         super();
     }
     async nodes(): Promise<ClusterExplorerNode[]> {
-        return [new ContributedGroupingFolderNode(this.displayName, this.contextValue, this.children)];
+        const childSources = await this.children();
+        return [new ContributedGroupingFolderNode(this.displayName, this.contextValue, childSources)];
     }
 }
 

@@ -193,6 +193,12 @@ export function resourceFolderContributor(displayName: string, pluralDisplayName
 }
 
 export function groupingFolderContributor(displayName: string, contextValue: string | undefined, ...children: ClusterExplorerV1_1.NodeSource[]): NodeSource {
-    const nodeSource = new CustomGroupingFolderNodeSource(displayName, contextValue, children.map(internalNodeSourceOf));
+    const nodeSourceImpls = children.map(internalNodeSourceOf);
+    const nodeSource = new CustomGroupingFolderNodeSource(displayName, contextValue, async () => nodeSourceImpls);
+    return apiNodeSourceOf(nodeSource);
+}
+
+export function dynamicGroupingFolderContributor(displayName: string, contextValue: string | undefined, children: () => Promise<NodeSource[]>): NodeSource {
+    const nodeSource = new CustomGroupingFolderNodeSource(displayName, contextValue, async () => (await children()).map(internalNodeSourceOf));
     return apiNodeSourceOf(nodeSource);
 }

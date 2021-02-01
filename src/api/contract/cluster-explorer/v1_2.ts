@@ -111,5 +111,6 @@ export namespace ClusterExplorerV1_2 {
     export interface NodeSources {
         resourceFolder(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string, apiName?: string): NodeSource;
         groupingFolder(displayName: string, contextValue: string | undefined, ...children: NodeSource[]): NodeSource;
+        groupingFolder(displayName: string, contextValue: string | undefined, children: () => Promise<NodeSource[]>): NodeSource;
     }
 }
