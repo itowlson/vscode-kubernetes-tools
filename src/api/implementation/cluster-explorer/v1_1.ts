@@ -4,7 +4,7 @@ import { KubernetesExplorer } from "../../../components/clusterexplorer/explorer
 import { ClusterExplorerV1_1 } from '../../contract/cluster-explorer/v1_1';
 
 import {
-    resolveCommandTarget,
+    resolveCommandTarget11,
     adaptToExplorerUICustomizer,
     internalNodeContributorOf,
     allNodeSources
@@ -18,7 +18,7 @@ class ClusterExplorerV1_1Impl implements ClusterExplorerV1_1 {
     constructor(private readonly explorer: KubernetesExplorer) {}
 
     resolveCommandTarget(target?: any): ClusterExplorerV1_1.ClusterExplorerNode | undefined {
-       return resolveCommandTarget(target);
+       return resolveCommandTarget11(target);
     }
 
     registerNodeContributor(nodeContributor: ClusterExplorerV1_1.NodeContributor): void {

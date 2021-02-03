@@ -11,24 +11,25 @@ import { ResourceKind } from '../../../kuberesources';
 
 import { ClusterExplorerV1 } from '../../contract/cluster-explorer/v1';
 import { ClusterExplorerV1_1 } from '../../contract/cluster-explorer/v1_1';
+import { ClusterExplorerV1_2 } from '../../contract/cluster-explorer/v1_2';
 
-export interface NodeContributor {
-    contributesChildren(parent: ClusterExplorerV1.ClusterExplorerNode | ClusterExplorerV1_1.ClusterExplorerNode | undefined): boolean;
-    getChildren(parent: ClusterExplorerV1.ClusterExplorerNode | ClusterExplorerV1_1.ClusterExplorerNode | undefined): Promise<Node[]>;
-}
+// export interface NodeContributor {
+//     contributesChildren(parent: ClusterExplorerV1_2.ClusterExplorerNode | undefined): boolean;
+//     getChildren(parent: ClusterExplorerV1_2.ClusterExplorerNode | undefined): Promise<Node[]>;
+// }
 
-export interface Node {
-    getChildren(): Promise<Node[]>;
+export interface NodeLike {
+    getChildren(): Promise<NodeLike[]>;
     getTreeItem(): vscode.TreeItem;
 }
 
-export interface NodeSource {
-    at(parentFolder: string | undefined): NodeContributor;
-    if(condition: () => boolean | Thenable<boolean>): NodeSource;
-    nodes(): Promise<Node[]>;
-}
+// export interface NodeSource {
+//     at(parentFolder: string | undefined): NodeContributor;
+//     if(condition: () => boolean | Thenable<boolean>): NodeSource;
+//     nodes(): Promise<Node[]>;
+// }
 
-export function resolveCommandTarget(target?: any): (ClusterExplorerV1.ClusterExplorerNode & ClusterExplorerV1_1.ClusterExplorerNode) | undefined {
+export function resolveCommandTarget(target?: any): ClusterExplorerV1_2.ClusterExplorerNode | undefined {
     if (!target) {
         return undefined;
     }
@@ -40,12 +41,33 @@ export function resolveCommandTarget(target?: any): (ClusterExplorerV1.ClusterEx
     return undefined;
 }
 
-export function adaptToExplorerUICustomizer(nodeUICustomizer: ClusterExplorerV1.NodeUICustomizer | ClusterExplorerV1_1.NodeUICustomizer): ExplorerUICustomizer<ClusterExplorerNode> {
+export function resolveCommandTarget11(target?: any): (ClusterExplorerV1.ClusterExplorerNode & ClusterExplorerV1_1.ClusterExplorerNode) | undefined {
+    return nodeTo11(resolveCommandTarget(target));
+}
+
+function nodeTo11(node: ClusterExplorerV1_2.ClusterExplorerNode | undefined): (ClusterExplorerV1.ClusterExplorerNode & ClusterExplorerV1_1.ClusterExplorerNode) | undefined {
+    if (!node) {
+        return node;
+    }
+    return nodeTo11Total(node);
+}
+
+function nodeTo11Total(node: ClusterExplorerV1_2.ClusterExplorerNode): (ClusterExplorerV1.ClusterExplorerNode & ClusterExplorerV1_1.ClusterExplorerNode) {
+    switch (node.nodeType) {
+        case 'helm.history':
+        case 'unrenderable':
+            return { nodeType: 'extension' };
+        default:
+            return node;
+    }
+}
+
+export function adaptToExplorerUICustomizer(nodeUICustomizer: ClusterExplorerV1_2.NodeUICustomizer): ExplorerUICustomizer<ClusterExplorerNode> {
     return new NodeUICustomizerAdapter(nodeUICustomizer);
 }
 
 class NodeUICustomizerAdapter implements ExplorerUICustomizer<ClusterExplorerNode> {
-    constructor(private readonly impl: ClusterExplorerV1.NodeUICustomizer | ClusterExplorerV1_1.NodeUICustomizer) {}
+    constructor(private readonly impl: ClusterExplorerV1_2.NodeUICustomizer) {}
     customize(element: ClusterExplorerNode, treeItem: vscode.TreeItem): true | Thenable<true> {
         const waiter = this.impl.customize(adaptKubernetesExplorerNode(element), treeItem);
         if (waiter) {
@@ -61,7 +83,7 @@ async function waitFor(waiter: Thenable<void>): Promise<true> {
 }
 
 export class NodeContributorAdapter implements ExplorerExtender<ClusterExplorerNode> {
-    constructor(private readonly impl: ClusterExplorerV1.NodeContributor | ClusterExplorerV1_1.NodeContributor) {}
+    constructor(private readonly impl: ClusterExplorerV1_2.NodeContributor) {}
     contributesChildren(parent?: ClusterExplorerNode | undefined): boolean {
         const parentNode = parent ? adaptKubernetesExplorerNode(parent) : undefined;
         return this.impl.contributesChildren(parentNode);
@@ -73,7 +95,26 @@ export class NodeContributorAdapter implements ExplorerExtender<ClusterExplorerN
     }
 }
 
-function adaptKubernetesExplorerNode(node: ClusterExplorerNode): ClusterExplorerV1.ClusterExplorerNode & ClusterExplorerV1_1.ClusterExplorerNode {
+export interface NC<PN, CN> {
+    contributesChildren(parent: PN | undefined): boolean;
+    getChildren(parent: PN | undefined): Promise<CN[]>;
+}
+
+export class NodeContributorAdapter2<C extends NC<PN, CN>, PN, CN extends NodeLike> implements ExplorerExtender<ClusterExplorerNode> {
+    constructor(private readonly impl: C, private readonly adaptNode: (n: ClusterExplorerNode) => PN) {}
+    contributesChildren(parent?: ClusterExplorerNode | undefined): boolean {
+        const parentNode = parent ? this.adaptNode(parent) : undefined;
+        return this.impl.contributesChildren(parentNode);
+    }
+    async getChildren(parent?: ClusterExplorerNode | undefined): Promise<ClusterExplorerNode[]> {
+        const parentNode = parent ? this.adaptNode(parent) : undefined;
+        const children = await this.impl.getChildren(parentNode);
+        return children.map(internalNodeOfG);
+    }
+}
+
+
+function adaptKubernetesExplorerNode(node: ClusterExplorerNode): ClusterExplorerV1_2.ClusterExplorerNode {
     switch (node.nodeType) {
         case 'error':
             return { nodeType: 'error' };
@@ -92,12 +133,15 @@ function adaptKubernetesExplorerNode(node: ClusterExplorerNode): ClusterExplorer
         case 'helm.release':
             return { nodeType: 'helm.release', name: node.releaseName };
         case 'helm.history':
+            return { nodeType: 'helm.history' };
         case 'extension':
             return { nodeType: 'extension' };
+        default:
+            return { nodeType: 'unrenderable' };
     }
 }
 
-function adaptKubernetesExplorerResourceNode(node: ClusterExplorerResourceNode): ClusterExplorerV1.ClusterExplorerResourceNode & ClusterExplorerV1_1.ClusterExplorerResourceNode {
+function adaptKubernetesExplorerResourceNode(node: ClusterExplorerResourceNode): ClusterExplorerV1_2.ClusterExplorerResourceNode {
     return {
         nodeType: 'resource',
         metadata: node.metadata,
@@ -107,10 +151,17 @@ function adaptKubernetesExplorerResourceNode(node: ClusterExplorerResourceNode):
     };
 }
 
-export function allNodeSources(): ClusterExplorerV1.NodeSources & ClusterExplorerV1_1.NodeSources {
+export function allNodeSources(): ClusterExplorerV1_1.NodeSources & ClusterExplorerV1_2.NodeSources {
     return {
         resourceFolder: resourceFolderContributor,
         groupingFolder: groupingFolderContributor
+    };
+}
+
+export function allNodeSources1(): ClusterExplorerV1.NodeSources {
+    return {
+        resourceFolder: resourceFolderContributor1,
+        groupingFolder: groupingFolderContributor1
     };
 }
 
@@ -138,7 +189,7 @@ export class ContributedNode implements ClusterExplorerCustomNode {
     readonly nodeType = 'extension';
     readonly id = 'dummy';
 
-    constructor(private readonly impl: Node) { }
+    constructor(private readonly impl: ClusterExplorerV1_2.Node) { }
 
     async getChildren(_kubectl: Kubectl, _host: Host): Promise<ClusterExplorerNode[]> {
         return (await this.impl.getChildren()).map((n) => internalNodeOf(n));
@@ -151,7 +202,25 @@ export class ContributedNode implements ClusterExplorerCustomNode {
     }
 }
 
-export function apiNodeSourceOf(nodeSet: NodeSourceImpl): NodeSource & BuiltInNodeSource {
+export class ContributedNodeG<N extends NodeLike> implements ClusterExplorerCustomNode {
+    readonly nodeCategory = 'kubernetes-explorer-node';
+    readonly nodeType = 'extension';
+    readonly id = 'dummy';
+
+    constructor(private readonly impl: N) { }
+
+    async getChildren(_kubectl: Kubectl, _host: Host): Promise<ClusterExplorerNode[]> {
+        return (await this.impl.getChildren()).map((n) => internalNodeOf(n));
+    }
+    getTreeItem(): vscode.TreeItem {
+        return this.impl.getTreeItem();
+    }
+    async apiURI(_kubectl: Kubectl, _namespace: string): Promise<string | undefined> {
+        return undefined;
+    }
+}
+
+export function apiNodeSourceOf(nodeSet: NodeSourceImpl): ClusterExplorerV1_1.NodeSource & ClusterExplorerV1_2.NodeSource & BuiltInNodeSource {
     return {
         at(parent: string | undefined) { const ee = nodeSet.at(parent); return apiNodeContributorOf(ee); },
         if(condition: () => boolean | Thenable<boolean>) { return apiNodeSourceOf(nodeSet.if(condition)); },
@@ -161,16 +230,26 @@ export function apiNodeSourceOf(nodeSet: NodeSourceImpl): NodeSource & BuiltInNo
     };
 }
 
-export function apiNodeContributorOf(ee: ExplorerExtender<ClusterExplorerNode>): NodeContributor & BuiltInNodeContributor {
+export function apiNodeSourceOf1(nodeSet: NodeSourceImpl): ClusterExplorerV1.NodeSource & BuiltInNodeSource {
     return {
-        contributesChildren(_parent) { return false; },
-        async getChildren(_parent) { return []; },
+        at(parent: string | undefined) { const ee = nodeSet.at(parent); return apiNodeContributorOf(ee); },
+        if(condition: () => boolean | Thenable<boolean>) { return apiNodeSourceOf1(nodeSet.if(condition)); },
+        async nodes() { return (await nodeSet.nodes()).map(apiNodeOf); },
+        [BUILT_IN_NODE_SOURCE_KIND_TAG]: true,
+        impl: nodeSet
+    };
+}
+
+export function apiNodeContributorOf(ee: ExplorerExtender<ClusterExplorerNode>): ClusterExplorerV1.NodeContributor & ClusterExplorerV1_1.NodeContributor & ClusterExplorerV1_2.NodeContributor & BuiltInNodeContributor {
+    return {
+        contributesChildren(_parent: any) { return false; },
+        async getChildren(_parent: any) { return []; },
         [BUILT_IN_CONTRIBUTOR_KIND_TAG]: true,
         impl: ee
     };
 }
 
-export function apiNodeOf(node: ClusterExplorerNode): Node & BuiltInNode {
+export function apiNodeOf(node: ClusterExplorerNode): (ClusterExplorerV1.Node & ClusterExplorerV1_1.Node & ClusterExplorerV1_2.Node) & BuiltInNode {
     return {
         async getChildren() { throw new Error('apiNodeOf->getChildren: not expected to be called directly'); },
         getTreeItem() { throw new Error('apiNodeOf->getTreeItem: not expected to be called directly'); },
@@ -179,7 +258,10 @@ export function apiNodeOf(node: ClusterExplorerNode): Node & BuiltInNode {
     };
 }
 
-export function internalNodeSourceOf(nodeSet: ClusterExplorerV1.NodeSource | ClusterExplorerV1_1.NodeSource): NodeSourceImpl {
+type NodeSourceVersioned =
+    { v: "1"; s: ClusterExplorerV1.NodeSource }
+
+export function internalNodeSourceOf(nodeSet: ClusterExplorerV1_2.NodeSource): NodeSourceImpl {
     if ((<any>nodeSet)[BUILT_IN_NODE_SOURCE_KIND_TAG]) {
         return (nodeSet as unknown as BuiltInNodeSource).impl;
     }
@@ -190,26 +272,92 @@ export function internalNodeSourceOf(nodeSet: ClusterExplorerV1.NodeSource | Clu
     };
 }
 
-export function internalNodeContributorOf(nodeContributor: ClusterExplorerV1.NodeContributor | ClusterExplorerV1_1.NodeContributor): ExplorerExtender<ClusterExplorerNode> {
+export function internalNodeSourceOf1(nodeSet: ClusterExplorerV1.NodeSource): NodeSourceImpl {
+    if ((<any>nodeSet)[BUILT_IN_NODE_SOURCE_KIND_TAG]) {
+        return (nodeSet as unknown as BuiltInNodeSource).impl;
+    }
+    return {
+        at(parent: string | undefined) { return internalNodeContributorOf(NodeContributor.from11(nodeSet.at(parent))); },
+        if(condition: () => boolean | Thenable<boolean>) { return internalNodeSourceOf1(nodeSet).if(condition); },
+        async nodes() { return (await nodeSet.nodes()).map(internalNodeOf); }
+    };
+}
+
+export type NodeConributorVersioned =
+    { v: "1"; c: ClusterExplorerV1.NodeContributor } |
+    { v: "1.1"; c: ClusterExplorerV1_1.NodeContributor } |
+    { v: "1.2"; c: ClusterExplorerV1_2.NodeContributor };
+
+export function internalNodeContributorOf(nodeContributor: ClusterExplorerV1_2.NodeContributor): ExplorerExtender<ClusterExplorerNode> {
     if ((<any>nodeContributor)[BUILT_IN_CONTRIBUTOR_KIND_TAG] === true) {
         return (nodeContributor as unknown as BuiltInNodeContributor).impl;
     }
     return new NodeContributorAdapter(nodeContributor);
 }
 
-export function internalNodeOf(node: ClusterExplorerV1.Node | ClusterExplorerV1_1.Node): ClusterExplorerNode {
+export function internalNodeContributorOfV(nodeContributor: NodeConributorVersioned): ExplorerExtender<ClusterExplorerNode> {
+    if ((<any>nodeContributor.c)[BUILT_IN_CONTRIBUTOR_KIND_TAG] === true) {
+        return (nodeContributor as unknown as BuiltInNodeContributor).impl;
+    }
+    if (nodeContributor.v === "1") {
+        return new NodeContributorAdapter2<ClusterExplorerV1.NodeContributor, ClusterExplorerV1.ClusterExplorerNode, ClusterExplorerV1.Node>(nodeContributor.c, (n) => nodeTo11Total(adaptKubernetesExplorerNode(n)));
+    } else if (nodeContributor.v === "1.1") {
+        return new NodeContributorAdapter2<ClusterExplorerV1_1.NodeContributor, ClusterExplorerV1_1.ClusterExplorerNode, ClusterExplorerV1_1.Node>(nodeContributor.c, (n) => nodeTo11Total(adaptKubernetesExplorerNode(n)));
+    } else {
+        return new NodeContributorAdapter2<ClusterExplorerV1_2.NodeContributor, ClusterExplorerV1_2.ClusterExplorerNode, ClusterExplorerV1_2.Node>(nodeContributor.c, adaptKubernetesExplorerNode);
+    }
+}
+
+export function internalNodeOfG<N extends NodeLike>(node: N): ClusterExplorerNode {
+    if ((<any>node)[BUILT_IN_NODE_KIND_TAG]) {
+        return (node as unknown as BuiltInNode).impl;
+    }
+    return new ContributedNodeG<N>(node);
+}
+
+export function internalNodeOf(node: ClusterExplorerV1_2.Node): ClusterExplorerNode {
     if ((<any>node)[BUILT_IN_NODE_KIND_TAG]) {
         return (node as unknown as BuiltInNode).impl;
     }
     return new ContributedNode(node);
 }
 
-function resourceFolderContributor(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string, apiName?: string): NodeSource {
+function resourceFolderContributor(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string, apiName?: string): ClusterExplorerV1_2.NodeSource {
     const nodeSource = new CustomResourceFolderNodeSource(new ResourceKind(displayName, pluralDisplayName, manifestKind, abbreviation, apiName));
     return apiNodeSourceOf(nodeSource);
 }
 
-function groupingFolderContributor(displayName: string, contextValue: string | undefined, ...children: NodeSource[]): NodeSource {
+function groupingFolderContributor(displayName: string, contextValue: string | undefined, ...children: ClusterExplorerV1_2.NodeSource[]): ClusterExplorerV1_2.NodeSource {
     const nodeSource = new CustomGroupingFolderNodeSource(displayName, contextValue, children.map(internalNodeSourceOf));
     return apiNodeSourceOf(nodeSource);
+}
+
+function resourceFolderContributor1(displayName: string, pluralDisplayName: string, manifestKind: string, abbreviation: string, apiName?: string): ClusterExplorerV1.NodeSource {
+    const nodeSource = new CustomResourceFolderNodeSource(new ResourceKind(displayName, pluralDisplayName, manifestKind, abbreviation, apiName));
+    return apiNodeSourceOf1(nodeSource);
+}
+
+function groupingFolderContributor1(displayName: string, contextValue: string | undefined, ...children: ClusterExplorerV1.NodeSource[]): ClusterExplorerV1.NodeSource {
+    const nodeSource = new CustomGroupingFolderNodeSource(displayName, contextValue, children.map(internalNodeSourceOf1));
+    return apiNodeSourceOf1(nodeSource);
+}
+
+export namespace NodeContributor {
+    export function from11(impl: ClusterExplorerV1.NodeContributor | ClusterExplorerV1_1.NodeContributor): ClusterExplorerV1_2.NodeContributor {
+        return {
+            contributesChildren: (parent: ClusterExplorerV1_2.ClusterExplorerNode | undefined) =>
+                impl.contributesChildren(nodeTo11(parent)),
+            getChildren: (parent: ClusterExplorerV1_2.ClusterExplorerNode | undefined): Promise<ClusterExplorerV1_2.Node[]> =>
+                impl.getChildren(nodeTo11(parent)),
+        };
+    }
+}
+
+export namespace NodeUICustomizer {
+    export function from11(impl: ClusterExplorerV1.NodeUICustomizer | ClusterExplorerV1_1.NodeUICustomizer): ClusterExplorerV1_2.NodeUICustomizer {
+        return {
+            customize: (node: ClusterExplorerV1_2.ClusterExplorerNode, treeItem: vscode.TreeItem): void | Thenable<void> =>
+                impl.customize(nodeTo11Total(node), treeItem)
+        };
+    }
 }

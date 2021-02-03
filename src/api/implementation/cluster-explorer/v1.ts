@@ -2,10 +2,11 @@ import { KubernetesExplorer } from "../../../components/clusterexplorer/explorer
 import { ClusterExplorerV1 } from "../../contract/cluster-explorer/v1";
 
 import {
-    resolveCommandTarget,
+    resolveCommandTarget11,
     adaptToExplorerUICustomizer,
-    internalNodeContributorOf,
-    allNodeSources
+    internalNodeContributorOfV,
+    allNodeSources1,
+    NodeUICustomizer,
 } from './common';
 
 export function impl(explorer: KubernetesExplorer): ClusterExplorerV1 {
@@ -16,21 +17,22 @@ class ClusterExplorerV1Impl implements ClusterExplorerV1 {
     constructor(private readonly explorer: KubernetesExplorer) {}
 
     resolveCommandTarget(target?: any): ClusterExplorerV1.ClusterExplorerNode | undefined {
-        return resolveCommandTarget(target);
+        return resolveCommandTarget11(target);
     }
 
     registerNodeContributor(nodeContributor: ClusterExplorerV1.NodeContributor): void {
-        const adapted = internalNodeContributorOf(nodeContributor);
+        // const adapted = internalNodeContributorOf(NodeContributor.from11(nodeContributor));
+        const adapted = internalNodeContributorOfV({v: "1", c: nodeContributor });
         this.explorer.registerExtender(adapted);
     }
 
     registerNodeUICustomizer(nodeUICustomizer: ClusterExplorerV1.NodeUICustomizer): void {
-        const adapted = adaptToExplorerUICustomizer(nodeUICustomizer);
+        const adapted = adaptToExplorerUICustomizer(NodeUICustomizer.from11(nodeUICustomizer));
         this.explorer.registerUICustomiser(adapted);
     }
 
     get nodeSources(): ClusterExplorerV1.NodeSources {
-        return allNodeSources();
+        return allNodeSources1();
     }
 
     refresh(): void {
