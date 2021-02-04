@@ -36,16 +36,6 @@ export function resolveCommandTarget<N>(target: any, adaptNode: (n: ClusterExplo
     return undefined;
 }
 
-function nodeTo11(node: ClusterExplorerV1_2.ClusterExplorerNode): (ClusterExplorerV1.ClusterExplorerNode & ClusterExplorerV1_1.ClusterExplorerNode) {
-    switch (node.nodeType) {
-        case 'helm.history':
-        case 'unrenderable':
-            return { nodeType: 'extension' };
-        default:
-            return node;
-    }
-}
-
 interface NodeUICustomizerLike<N> {
     customize(node: N, treeItem: vscode.TreeItem): void | Thenable<void>;
 }
@@ -54,7 +44,7 @@ export function adaptToExplorerUICustomizer<N>(nodeUICustomizer: NodeUICustomize
     return new NodeUICustomizerAdapter(nodeUICustomizer, adaptNode);
 }
 
-export const NODE_SCHEMA_1_TO_1_1 = (n: ClusterExplorerNode) => nodeTo11(adaptKubernetesExplorerNode1_to_1_1(n));
+export const NODE_SCHEMA_1_TO_1_1 = (n: ClusterExplorerNode) => adaptKubernetesExplorerNode1_to_1_1(n);
 export const NODE_SCHEMA_1_2 = (n: ClusterExplorerNode) => adaptKubernetesExplorerNode1_2(n);
 
 class NodeUICustomizerAdapter<N> implements ExplorerUICustomizer<ClusterExplorerNode> {
@@ -95,31 +85,14 @@ export class NodeContributorAdapter<
 }
 
 function adaptKubernetesExplorerNode1_to_1_1(node: ClusterExplorerNode): (ClusterExplorerV1.ClusterExplorerNode & ClusterExplorerV1_1.ClusterExplorerNode) {
-    switch (node.nodeType) {
-        case 'error':
-            return { nodeType: 'error' };
-        case 'context':
-            return node.kubectlContext.active ?
-                { nodeType: 'context', name: node.contextName } :
-                { nodeType: 'context.inactive', name: node.contextName };
-        case 'folder.grouping':
-            return { nodeType: 'folder.grouping' };
-        case 'folder.resource':
-            return { nodeType: 'folder.resource', resourceKind: node.kind };
-        case 'resource':
-            return adaptKubernetesExplorerResourceNode(node);
-        case 'configitem':
-            return { nodeType: 'configitem', name: node.key };
-        case 'helm.release':
-            return { nodeType: 'helm.release', name: node.releaseName };
-        case 'helm.history':
-        case 'extension':
-        default:
-            return { nodeType: 'extension' };
-    }
+    return tryAdaptKubernetesExplorerNode1_to_1_1(node) || { nodeType: 'extension' };
 }
 
 function adaptKubernetesExplorerNode1_2(node: ClusterExplorerNode): ClusterExplorerV1_2.ClusterExplorerNode {
+    return tryAdaptKubernetesExplorerNode1_2(node) || { nodeType: 'unrenderable' };
+}
+
+function tryAdaptKubernetesExplorerNode1_to_1_1(node: ClusterExplorerNode): (ClusterExplorerV1.ClusterExplorerNode & ClusterExplorerV1_1.ClusterExplorerNode) | undefined {
     switch (node.nodeType) {
         case 'error':
             return { nodeType: 'error' };
@@ -137,13 +110,22 @@ function adaptKubernetesExplorerNode1_2(node: ClusterExplorerNode): ClusterExplo
             return { nodeType: 'configitem', name: node.key };
         case 'helm.release':
             return { nodeType: 'helm.release', name: node.releaseName };
-        case 'helm.history':
-            return { nodeType: 'helm.history' };
         case 'extension':
             return { nodeType: 'extension' };
-        default:
-            return { nodeType: 'unrenderable' };
     }
+    return undefined;
+}
+
+function tryAdaptKubernetesExplorerNode1_2(node: ClusterExplorerNode): ClusterExplorerV1_2.ClusterExplorerNode | undefined {
+    const result = tryAdaptKubernetesExplorerNode1_to_1_1(node);
+    if (result) {
+        return result;
+    }
+    switch (node.nodeType) {
+        case 'helm.history':
+            return { nodeType: 'helm.history' };
+    }
+    return undefined;
 }
 
 function adaptKubernetesExplorerResourceNode(node: ClusterExplorerResourceNode): ClusterExplorerV1_2.ClusterExplorerResourceNode {
@@ -282,24 +264,6 @@ export function internalNodeSourceOf<
         async nodes() { return (await nodeSource.nodes()).map(internalNodeOf); }
     };
 }
-
-// export type NodeConributorVersioned =
-//     { v: "1"; c: ClusterExplorerV1.NodeContributor } |
-//     { v: "1.1"; c: ClusterExplorerV1_1.NodeContributor } |
-//     { v: "1.2"; c: ClusterExplorerV1_2.NodeContributor };
-
-// export function internalNodeContributorOf(nodeContributor: NodeConributorVersioned): ExplorerExtender<ClusterExplorerNode> {
-//     if ((<any>nodeContributor.c)[BUILT_IN_CONTRIBUTOR_KIND_TAG] === true) {
-//         return (nodeContributor as unknown as BuiltInNodeContributor).impl;
-//     }
-//     if (nodeContributor.v === "1") {
-//         return new NodeContributorAdapter<ClusterExplorerV1.ClusterExplorerNode, ClusterExplorerV1.Node>(nodeContributor.c, (n) => nodeTo11Total(adaptKubernetesExplorerNode(n)));
-//     } else if (nodeContributor.v === "1.1") {
-//         return new NodeContributorAdapter<ClusterExplorerV1_1.ClusterExplorerNode, ClusterExplorerV1_1.Node>(nodeContributor.c, (n) => nodeTo11Total(adaptKubernetesExplorerNode(n)));
-//     } else {
-//         return new NodeContributorAdapter<ClusterExplorerV1_2.ClusterExplorerNode, ClusterExplorerV1_2.Node>(nodeContributor.c, adaptKubernetesExplorerNode);
-//     }
-// }
 
 export function internalNodeContributorOf<
     PN,
