@@ -6,7 +6,6 @@ import {
     adaptToExplorerUICustomizer,
     internalNodeContributorOf,
     allNodeSources1,
-    NodeUICustomizer,
     NODE_SCHEMA_1_TO_1_1,
 } from './common';
 
@@ -28,7 +27,7 @@ class ClusterExplorerV1Impl implements ClusterExplorerV1 {
     }
 
     registerNodeUICustomizer(nodeUICustomizer: ClusterExplorerV1.NodeUICustomizer): void {
-        const adapted = adaptToExplorerUICustomizer(NodeUICustomizer.from11(nodeUICustomizer));
+        const adapted = adaptToExplorerUICustomizer(nodeUICustomizer, NODE_SCHEMA_1_TO_1_1);
         this.explorer.registerUICustomiser(adapted);
     }
 

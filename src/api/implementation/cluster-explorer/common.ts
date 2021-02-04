@@ -46,17 +46,21 @@ function nodeTo11(node: ClusterExplorerV1_2.ClusterExplorerNode): (ClusterExplor
     }
 }
 
-export function adaptToExplorerUICustomizer(nodeUICustomizer: ClusterExplorerV1_2.NodeUICustomizer): ExplorerUICustomizer<ClusterExplorerNode> {
-    return new NodeUICustomizerAdapter(nodeUICustomizer);
+interface NodeUICustomizerLike<N> {
+    customize(node: N, treeItem: vscode.TreeItem): void | Thenable<void>;
+}
+
+export function adaptToExplorerUICustomizer<N>(nodeUICustomizer: NodeUICustomizerLike<N>, adaptNode: (node: ClusterExplorerNode) => N): ExplorerUICustomizer<ClusterExplorerNode> {
+    return new NodeUICustomizerAdapter(nodeUICustomizer, adaptNode);
 }
 
 export const NODE_SCHEMA_1_TO_1_1 = (n: ClusterExplorerNode) => nodeTo11(adaptKubernetesExplorerNode1_to_1_1(n));
 export const NODE_SCHEMA_1_2 = (n: ClusterExplorerNode) => adaptKubernetesExplorerNode1_2(n);
 
-class NodeUICustomizerAdapter implements ExplorerUICustomizer<ClusterExplorerNode> {
-    constructor(private readonly impl: ClusterExplorerV1_2.NodeUICustomizer) {}
+class NodeUICustomizerAdapter<N> implements ExplorerUICustomizer<ClusterExplorerNode> {
+    constructor(private readonly impl: NodeUICustomizerLike<N>, private readonly adaptNode: (node: ClusterExplorerNode) => N) {}
     customize(element: ClusterExplorerNode, treeItem: vscode.TreeItem): true | Thenable<true> {
-        const waiter = this.impl.customize(adaptKubernetesExplorerNode1_2(element), treeItem);
+        const waiter = this.impl.customize(this.adaptNode(element), treeItem);
         if (waiter) {
             return waitFor(waiter);
         }
@@ -208,7 +212,6 @@ export class ContributedNode<N extends NodeLike> implements ClusterExplorerCusto
 }
 
 export function apiNodeSourceOf<
-    // NS extends NodeSourceLike<PN, CN>,
     PN,
     CN extends NodeLike,
 >(nodeSet: NodeSourceImpl): NodeSourceLike<PN, CN> & BuiltInNodeSource {
@@ -330,13 +333,4 @@ function groupingFolderContributor<
 >(displayName: string, contextValue: string | undefined, adaptNode: (n: ClusterExplorerNode) => PN, ...children: NS[]): NodeSourceLike<PN, CN> {
     const nodeSource = new CustomGroupingFolderNodeSource(displayName, contextValue, children.map((c) => internalNodeSourceOf(c, adaptNode)));
     return apiNodeSourceOf(nodeSource);
-}
-
-export namespace NodeUICustomizer {
-    export function from11(impl: ClusterExplorerV1.NodeUICustomizer | ClusterExplorerV1_1.NodeUICustomizer): ClusterExplorerV1_2.NodeUICustomizer {
-        return {
-            customize: (node: ClusterExplorerV1_2.ClusterExplorerNode, treeItem: vscode.TreeItem): void | Thenable<void> =>
-                impl.customize(nodeTo11(node), treeItem)
-        };
-    }
 }

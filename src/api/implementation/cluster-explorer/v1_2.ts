@@ -28,7 +28,7 @@ class ClusterExplorerV1_2Impl implements ClusterExplorerV1_2 {
     }
 
     registerNodeUICustomizer(nodeUICustomizer: ClusterExplorerV1_2.NodeUICustomizer): void {
-        const adapted = adaptToExplorerUICustomizer(nodeUICustomizer);
+        const adapted = adaptToExplorerUICustomizer(nodeUICustomizer, NODE_SCHEMA_1_2);
         this.explorer.registerUICustomiser(adapted);
     }
 
