@@ -7,7 +7,8 @@ import {
     resolveCommandTarget,
     adaptToExplorerUICustomizer,
     internalNodeContributorOf,
-    allNodeSources
+    allNodeSources,
+    NODE_SCHEMA_1_2
 } from './common';
 
 export function impl(explorer: KubernetesExplorer): ClusterExplorerV1_2 {
@@ -18,11 +19,11 @@ class ClusterExplorerV1_2Impl implements ClusterExplorerV1_2 {
     constructor(private readonly explorer: KubernetesExplorer) {}
 
     resolveCommandTarget(target?: any): ClusterExplorerV1_2.ClusterExplorerNode | undefined {
-       return resolveCommandTarget(target);
+       return resolveCommandTarget(target, NODE_SCHEMA_1_2);
     }
 
     registerNodeContributor(nodeContributor: ClusterExplorerV1_2.NodeContributor): void {
-        const adapted = internalNodeContributorOf(nodeContributor);
+        const adapted = internalNodeContributorOf(nodeContributor, NODE_SCHEMA_1_2);
         this.explorer.registerExtender(adapted);
     }
 
