@@ -97,15 +97,71 @@ export function getActiveKubeconfig(): string {
 
 // Functions for working with tool paths
 
-export function getToolPath(host: Host, shell: Shell, tool: string): string | undefined {
+export async function getToolPath(host: Host, shell: Shell, tool: string): Promise<string | undefined> {
     const baseKey = toolPathBaseKey(tool);
-    return getPathSetting(host, shell, baseKey);
+    return await getPathSetting(host, shell, baseKey);
 }
 
-function getPathSetting(host: Host, shell: Shell, baseKey: string): string | undefined {
+async function getPathSetting(host: Host, shell: Shell, baseKey: string): Promise<string | undefined> {
     const os = shell.platform();
-    const osOverridePath = host.getConfiguration(EXTENSION_CONFIG_KEY)[osOverrideKey(os, baseKey)];
-    return osOverridePath || host.getConfiguration(EXTENSION_CONFIG_KEY)[baseKey];
+    const osKey = osOverrideKey(os, baseKey);
+    return await getFromTopLevelOrObject(host, osKey, baseKey);
+}
+
+async function getFromTopLevelOrObject(host: Host, ...keys: string[]): Promise<string | undefined> {
+    for (const key of keys) {
+        const topLevel = host.getConfiguration(key);
+        if (topLevel) {
+            return topLevel;
+        }
+    }
+
+    for (const key of keys) {
+        const oldSkool = host.getConfiguration(EXTENSION_CONFIG_KEY)[key];
+        if (oldSkool) {
+            if (await canTrustConfigValue(host, key, oldSkool)) {
+                return oldSkool;
+            }
+        }
+    }
+
+    return undefined;
+}
+
+async function canTrustConfigValue(host: Host, key: string, value: string): Promise<boolean> {
+    const inspectionResult = (host.getConfiguration(EXTENSION_CONFIG_KEY) as vscode.WorkspaceConfiguration).inspect<string>(key);
+    if (!inspectionResult) {
+        return true;
+    }
+    if (value === inspectionResult.globalValue || value === inspectionResult.defaultValue) {
+        return true;
+    }
+    if (isRecordedTrustworthy(host, key, value)) {
+        return true;
+    }
+    // the value comes from the workspace, which could have been cloned from a malicious
+    // workspace
+    const message = `The workspace wants to run the progran "${value}". Do you trust this workspace and this program?`;
+    const trustCommand = 'Yes, this is expected';
+    const dontTrustCommand = 'No, this looks suspicious';
+    const result = await host.showWarningMessage(message, trustCommand, dontTrustCommand);
+    const trust = (result === trustCommand);
+    if (trust) {
+        recordTrustworthy(host, key, value);
+    }
+    return trust;
+}
+
+function isRecordedTrustworthy(host: Host, key: string, value: string): boolean {
+    return host.getExtensionState<boolean>(mementoTrustKey(key, value)) || false;
+}
+
+async function recordTrustworthy(host: Host, key: string, value: string): Promise<void> {
+    await host.setExtensionState(mementoTrustKey(key, value), true);
+}
+
+function mementoTrustKey(key: string, trustedValue: string): string {
+    return `trust_${trustedValue}_for_${key}`;
 }
 
 export function toolPathOSKey(os: Platform, tool: string): string {

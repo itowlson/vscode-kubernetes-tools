@@ -17,7 +17,7 @@ import * as clipboard from './components/platform/clipboard';
 import { pullAll } from 'lodash';
 
 // Internal dependencies
-import { host } from './host';
+import { host, setHostContext } from './host';
 import { addKubernetesConfigFile, deleteKubernetesConfigFile } from './configMap';
 import * as explainer from './explainer';
 import { shell } from './shell';
@@ -131,6 +131,7 @@ export const HELM_TPL_MODE: vscode.DocumentFilter = { language: "helm", scheme: 
 // your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext): Promise<APIBroker> {
     setAssetContext(context);
+    setHostContext(context);
 
     kubectl.ensurePresent({ warningIfNotPresent: 'Kubectl not found. Many features of the Kubernetes extension will not work.' });
 

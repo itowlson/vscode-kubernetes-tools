@@ -3,6 +3,12 @@ import { shellEnvironment } from './shell';
 import { showWorkspaceFolderPick } from './hostutils';
 import { Dictionary } from './utils/dictionary';
 
+let EXTENSION_CONTEXT: vscode.ExtensionContext | null = null;
+
+export function setHostContext(context: vscode.ExtensionContext) {
+    EXTENSION_CONTEXT = context;
+}
+
 export interface Host {
     showErrorMessage(message: string, ...items: string[]): Thenable<string | undefined>;
     showWarningMessage(message: string, ...items: string[]): Thenable<string | undefined>;
@@ -20,6 +26,8 @@ export interface Host {
     readDocument(uri: vscode.Uri): Promise<vscode.TextDocument>;
     selectRootFolder(): Promise<string | undefined>;
     longRunning<T>(uiOptions: string | LongRunningUIOptions, action: () => Promise<T>): Promise<T>;
+    getExtensionState<T>(key: string): T | undefined;
+    setExtensionState<T>(key: string, value: T): Promise<void>;
 }
 
 export const host: Host = {
@@ -37,7 +45,9 @@ export const host: Host = {
     showDocument : showDocument,
     readDocument : readDocument,
     selectRootFolder : selectRootFolder,
-    longRunning : longRunning
+    longRunning : longRunning,
+    getExtensionState : getExtensionState,
+    setExtensionState : setExtensionState,
 };
 
 export interface LongRunningUIOptions {
@@ -183,4 +193,18 @@ function uiOptionsObjectOf(uiOptions: string | LongRunningUIOptions): LongRunnin
 
 function isLongRunningUIOptions(obj: string | LongRunningUIOptions): obj is LongRunningUIOptions {
     return !!((obj as LongRunningUIOptions).title);
+}
+
+function getExtensionState<T>(key: string): T | undefined {
+    if (EXTENSION_CONTEXT === null) {
+        throw new Error("INTERNAL ERROR: Host not initialised (EXTENSION_CONTEXT");
+    }
+    return EXTENSION_CONTEXT.globalState.get<T>(key);
+}
+
+async function setExtensionState<T>(key: string, value: T): Promise<void> {
+    if (EXTENSION_CONTEXT === null) {
+        throw new Error("INTERNAL ERROR: Host not initialised (EXTENSION_CONTEXT");
+    }
+    await EXTENSION_CONTEXT.globalState.update(key, value);
 }
